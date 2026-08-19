@@ -1,5 +1,6 @@
 """This file is used for communicating with the device."""
 
+import base64
 from abc import ABC, abstractmethod
 import logging
 import re
