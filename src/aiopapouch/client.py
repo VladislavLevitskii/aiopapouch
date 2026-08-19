@@ -8,8 +8,6 @@ from typing import Any, override
 import aiohttp
 import defusedxml.ElementTree as defused_ET
 
-from homeassistant.helpers.device_registry import format_mac
-
 from .exceptions import DeviceAuthError, DeviceConnectionError, DeviceLogicError
 
 INFO_URL = "is.xml"
@@ -87,9 +85,11 @@ class PapouchHTTPClient(PapouchTransport):
         self.ip_address = ip_address
 
         if password != "":
-            self._auth = aiohttp.BasicAuth("admin", password)
+            auth_string = f"admin:{password}"
+            b64_auth = base64.b64encode(auth_string.encode("utf-8")).decode("ascii")
+            self._auth_headers = {"Authorization": f"Basic {b64_auth}"}
         else:
-            self._auth = aiohttp.BasicAuth("", "")
+            self._auth_headers = {}
 
     @property
     @override
@@ -145,7 +145,7 @@ class PapouchHTTPClient(PapouchTransport):
         box = root.find(".//set[@box='12']")
 
         if box is not None:
-            return format_mac(str(box.attrib.get("mac", "")))
+            return str(box.attrib.get("mac", ""))
 
         raise DeviceLogicError(
             f"Device: {self.ip_address} doesn't have a box 12 with MAC address"
@@ -162,7 +162,7 @@ class PapouchHTTPClient(PapouchTransport):
                 method,
                 self.base_url + endpoint,
                 timeout=timeout,
-                auth=self._auth,
+                auth=self._auth_headers,
                 **kwargs,
             ) as response:
                 if response.status != 200:
