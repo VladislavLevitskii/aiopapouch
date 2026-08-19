@@ -1,9 +1,9 @@
 """This file contains definition of the QuidoETH device."""
 
-from abc import ABC, abstractmethod
 import logging
-from typing import Any, cast, override
 import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
+from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
@@ -132,9 +132,13 @@ class QuidoBase(PapouchDevice, ABC):
     @override
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         """Return the configuration data for read-only sensors."""
+
         sensors: list[dict[str, Any]] = [
             {
                 "item_id": str(i),
+                "value_key": self._generate_semantic_key(
+                    self.TEMPERATURE_SNS_TYPE, str(i)
+                ),
                 "type": "temperature",
                 "translation": "sensor_temperature",
                 "device_class": "temperature",
@@ -144,19 +148,18 @@ class QuidoBase(PapouchDevice, ABC):
             for i in range(1, self.number_temp + 1)
         ]
 
-        sensors.extend(
-            [
-                {
-                    "item_id": str(i),
-                    "type": "counter",
-                    "translation": "sensor_counter_placeholder",
-                    "placeholder": {"placeholder": str(i)},
-                    "state_class": "total",
-                    "unit": "pulses",
-                }
-                for i in range(1, self.number_inputs + 1)
-            ]
-        )
+        sensors.extend([
+            {
+                "item_id": str(i),
+                "value_key": self._generate_semantic_key(self.PULSES, str(i)),
+                "type": "counter",
+                "translation": "sensor_counter_placeholder",
+                "placeholder": {"placeholder": str(i)},
+                "state_class": "total",
+                "unit": "pulses",
+            }
+            for i in range(1, self.number_inputs + 1)
+        ])
 
         return sensors
 
@@ -177,15 +180,13 @@ class QuidoBase(PapouchDevice, ABC):
         """Return the configuration data for selects."""
         selects = []
         for i in range(1, self.number_inputs + 1):
-            selects.append(  # noqa: PERF401
-                {
-                    "item_id": str(i),
-                    "category": "counter_mode",
-                    "translation": "counter_mode",
-                    "placeholder": {"placeholder": str(i)},
-                    "options": self.COUNTER_MODES,
-                }
-            )
+            selects.append({
+                "item_id": str(i),
+                "category": "counter_mode",
+                "translation": "counter_mode",
+                "placeholder": {"placeholder": str(i)},
+                "options": self.COUNTER_MODES,
+            })
         return selects
 
     @override
@@ -276,10 +277,13 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
             match element.tag:
                 case "temp":
+                    semantic_key = self._generate_semantic_key(
+                        self.TEMPERATURE_SNS_TYPE, item_id
+                    )
                     val_str = element.attrib.get("val", "0")
                     if val_str == "":
                         val_str = 0
-                    parsed_data["temperature"][item_id] = float(val_str)
+                    parsed_data["temperature"][semantic_key] = float(val_str)
 
                 case "dout":  # codespell:ignore dout
                     val_str = element.attrib.get("val", "0")

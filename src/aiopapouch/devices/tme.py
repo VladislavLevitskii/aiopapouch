@@ -1,9 +1,9 @@
 """This file contains classes that define Papouch devices."""
 
-from abc import ABC, abstractmethod
 import logging
-from typing import Any, cast, override
 import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
+from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
@@ -146,54 +146,54 @@ class TMEBase(PapouchDevice, ABC):
                 sns_type = sub_data["type"]
                 unit = sub_data["unit"]
 
+                semantic_key = self._generate_semantic_key(sns_type, sub_id)
+
                 if sns_type == "1":
-                    sensors.append(
-                        {
-                            "item_id": sub_id,
-                            "type": "sensor",
-                            "translation": "sensor_temperature_placeholder",
-                            "placeholder": {"placeholder": sensor_name},
-                            "device_class": "temperature",
-                            "state_class": "measurement",
-                            "unit": unit,
-                        }
-                    )
+                    sensors.append({
+                        "item_id": sub_id,
+                        "value_key": semantic_key,
+                        "type": "sensor",
+                        "translation": "sensor_temperature_placeholder",
+                        "placeholder": {"placeholder": sensor_name},
+                        "device_class": "temperature",
+                        "state_class": "measurement",
+                        "unit": unit,
+                    })
                 elif sns_type == "2":
-                    sensors.append(
-                        {
-                            "item_id": sub_id,
-                            "type": "sensor",
-                            "translation": "sensor_humidity_placeholder",
-                            "placeholder": {"placeholder": sensor_name},
-                            "device_class": "humidity",
-                            "state_class": "measurement",
-                            "unit": unit,
-                        }
-                    )
+                    sensors.append({
+                        "item_id": sub_id,
+                        "value_key": semantic_key,
+                        "type": "sensor",
+                        "translation": "sensor_humidity_placeholder",
+                        "placeholder": {"placeholder": sensor_name},
+                        "device_class": "humidity",
+                        "state_class": "measurement",
+                        "unit": unit,
+                    })
                 elif sns_type == "batt":
-                    sensors.append(
-                        {
-                            "item_id": sub_id,
-                            "type": "sensor",
-                            "translation": "sensor_batt_placeholder",
-                            "placeholder": {"placeholder": sensor_name},
-                            "device_class": "battery",
-                            "state_class": "measurement",
-                            "unit": "%",
-                        }
-                    )
+                    sensors.append({
+                        "item_id": sub_id,
+                        "value_key": self._generate_semantic_key(self.BATTERY, sub_id),
+                        "type": "sensor",
+                        "translation": "sensor_batt_placeholder",
+                        "placeholder": {"placeholder": sensor_name},
+                        "device_class": "battery",
+                        "state_class": "measurement",
+                        "unit": "%",
+                    })
                 elif sns_type == "rssi":
-                    sensors.append(
-                        {
-                            "item_id": sub_id,
-                            "type": "sensor",
-                            "translation": "sensor_rsii_placeholder",
-                            "placeholder": {"placeholder": sensor_name},
-                            "device_class": "signal_strength",
-                            "state_class": "measurement",
-                            "unit": "dBm",
-                        }
-                    )
+                    sensors.append({
+                        "item_id": sub_id,
+                        "value_key": self._generate_semantic_key(
+                            self.SIGNAL_STRENGTH, sub_id
+                        ),
+                        "type": "sensor",
+                        "translation": "sensor_rsii_placeholder",
+                        "placeholder": {"placeholder": sensor_name},
+                        "device_class": "signal_strength",
+                        "state_class": "measurement",
+                        "unit": "dBm",
+                    })
 
         return sensors
 
@@ -262,12 +262,16 @@ class TME(TMEBase):
             "unit": real_unit,
         }
 
+        semantic_key = self._generate_semantic_key(
+            self.TEMPERATURE_SNS_TYPE, self.ITEM_ID
+        )
+
         if status in ("1", "4"):
-            parsed_data["sensor"][self.ITEM_ID] = None
+            parsed_data["sensor"][semantic_key] = None
         else:
             value = element.attrib.get("val", "0")
             try:
-                parsed_data["sensor"][self.ITEM_ID] = float(value) / 10.0
+                parsed_data["sensor"][semantic_key] = float(value) / 10.0
             except ValueError as err:
                 raise DeviceParseError(
                     f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error while parsing value: '{value}' from sensor"
@@ -312,8 +316,10 @@ class TMERadioMulti(TMEBase):
                 break
 
             item_id = base_item_id if idx == 1 else f"{base_item_id}_{idx}"
-
             final_unit = formatted_temp_unit if idx == 1 else "%"
+
+            sns_type = str(idx)
+            semantic_key = self._generate_semantic_key(sns_type, item_id)
 
             self.sensors[base_item_id]["sub_sensors"][item_id] = {
                 "type": str(idx),
@@ -321,12 +327,12 @@ class TMERadioMulti(TMEBase):
             }
 
             if status_str != "0":
-                parsed_data["sensor"][item_id] = None
+                parsed_data["sensor"][semantic_key] = None
             else:
                 try:
-                    parsed_data["sensor"][item_id] = float(raw_val) / 10.0
+                    parsed_data["sensor"][semantic_key] = float(raw_val) / 10.0
                 except ValueError:
-                    parsed_data["sensor"][item_id] = None
+                    parsed_data["sensor"][semantic_key] = None
 
             idx += 1
 
@@ -338,7 +344,8 @@ class TMERadioMulti(TMEBase):
                 "type": "batt",
                 "unit": "%",
             }
-            parsed_data["sensor"][batt_id] = batt_value
+            semantic_key = self._generate_semantic_key(self.BATTERY, batt_id)
+            parsed_data["sensor"][semantic_key] = batt_value
 
         rssi = element.attrib.get("rssi")
         if rssi is not None:
@@ -347,7 +354,8 @@ class TMERadioMulti(TMEBase):
                 "type": "rssi",
                 "unit": "dBm",
             }
-            parsed_data["sensor"][rssi_id] = int(rssi)
+            semantic_key = self._generate_semantic_key(self.SIGNAL_STRENGTH, rssi_id)
+            parsed_data["sensor"][semantic_key] = int(rssi)
 
     @override
     async def switch_to_web_mode(self) -> None:

@@ -112,6 +112,23 @@ class PapouchDevice(ABC):
     WIND_DIRECTION_SNS_TYPE = "6"
     WIND_SPEED_SNS_TYPE = "7"
     RAIN_SNS_TYPE = "8"
+    PULSES = "9"
+    BATTERY = "10"
+    SIGNAL_STRENGTH = "11"
+
+    TYPE_MAPPING = {
+        TEMPERATURE_SNS_TYPE: "temperature",
+        HUMIDITY_SNS_TYPE: "humidity",
+        DEW_POINT_SNS_TYPE: "dew_point",
+        CO2_SNS_TYPE: "co2",
+        PRESSURE_SNS_TYPE: "pressure",
+        WIND_DIRECTION_SNS_TYPE: "wind_direction",
+        WIND_SPEED_SNS_TYPE: "wind_speed",
+        RAIN_SNS_TYPE: "rain",
+        PULSES: "pulses",
+        BATTERY: "battery",
+        SIGNAL_STRENGTH: "signal_strength",
+    }
 
     UNIT_MAP = {
         TEMPERATURE_SNS_TYPE: {"0": "°C", "1": "°F", "2": "K"},
@@ -140,6 +157,12 @@ class PapouchDevice(ABC):
                 f"Unknown unit, device {self.name} sent: '{sns_type}' "
                 f"with code: '{unit_code}', that is missing in UNIT_MAP."
             ) from err
+
+    def _generate_semantic_key(self, component_type: str, item_id: str) -> str:
+        """Generate a readable semantic key based on the component type and hardware ID."""
+        # Use mapping from class constants, fallback to raw string if unknown
+        semantic_name = self.TYPE_MAPPING[component_type]
+        return f"{semantic_name}_{item_id}"
 
     @property
     @abstractmethod
@@ -234,6 +257,7 @@ class PapouchDevice(ABC):
         Expected dictionary structure:
         {
             "item_id": str | int,
+            "value_key": str, # Look up in parsed data
             "type": str,
             "name": str, # Fallback name
             "translation": str (Optional),

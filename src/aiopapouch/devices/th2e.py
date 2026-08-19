@@ -1,8 +1,8 @@
 """This file contains definition of the TH2E device."""
 
 import logging
-from typing import Any, cast, override
 import xml.etree.ElementTree as ET
+from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
@@ -84,6 +84,8 @@ class TH2E(PapouchDevice, HTTPMixin):
             sns_type = element.attrib.get("type")
             unit_code = element.attrib.get("unit", "0")
 
+            semantic_key = self._generate_semantic_key(sns_type, item_id)
+
             # unit 3 means percentage but in global unit map it would be 1
             if unit_code == "3":
                 unit_code = "0"
@@ -97,9 +99,11 @@ class TH2E(PapouchDevice, HTTPMixin):
             }
 
             if status in ("1", "4"):
-                parsed_data["sensor"][item_id] = None
+                parsed_data["sensor"][semantic_key] = None
             else:
-                parsed_data["sensor"][item_id] = float(element.attrib.get("val", "0"))
+                parsed_data["sensor"][semantic_key] = float(
+                    element.attrib.get("val", "0")
+                )
 
         return parsed_data
 
@@ -155,42 +159,41 @@ class TH2E(PapouchDevice, HTTPMixin):
             sns_type = sns["type"]
             unit_code = sns["unit"]
 
+            semantic_key = self._generate_semantic_key(sns_type, item_id)
+
             match sns_type:
                 case self.TEMPERATURE_SNS_TYPE:
-                    sensors.append(
-                        {
-                            "item_id": item_id,
-                            "type": "sensor",
-                            "translation": "sensor_temperature",
-                            "device_class": "temperature",
-                            "state_class": "measurement",
-                            "unit": self._get_unit(sns_type, unit_code),
-                        }
-                    )
+                    sensors.append({
+                        "item_id": item_id,
+                        "value_key": semantic_key,
+                        "type": "sensor",
+                        "translation": "sensor_temperature",
+                        "device_class": "temperature",
+                        "state_class": "measurement",
+                        "unit": self._get_unit(sns_type, unit_code),
+                    })
 
                 case self.HUMIDITY_SNS_TYPE:
-                    sensors.append(
-                        {
-                            "item_id": item_id,
-                            "type": "sensor",
-                            "translation": "sensor_humidity",
-                            "device_class": "humidity",
-                            "state_class": "measurement",
-                            "unit": self._get_unit(sns_type, unit_code),
-                        }
-                    )
+                    sensors.append({
+                        "item_id": item_id,
+                        "value_key": semantic_key,
+                        "type": "sensor",
+                        "translation": "sensor_humidity",
+                        "device_class": "humidity",
+                        "state_class": "measurement",
+                        "unit": self._get_unit(sns_type, unit_code),
+                    })
 
                 case self.DEW_POINT_SNS_TYPE:
-                    sensors.append(
-                        {
-                            "item_id": item_id,
-                            "type": "sensor",
-                            "translation": "sensor_dew_point",
-                            "device_class": "temperature",
-                            "state_class": "measurement",
-                            "unit": self._get_unit(sns_type, unit_code),
-                        }
-                    )
+                    sensors.append({
+                        "item_id": item_id,
+                        "value_key": semantic_key,
+                        "type": "sensor",
+                        "translation": "sensor_dew_point",
+                        "device_class": "temperature",
+                        "state_class": "measurement",
+                        "unit": self._get_unit(sns_type, unit_code),
+                    })
 
         return sensors
 
