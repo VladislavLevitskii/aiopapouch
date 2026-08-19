@@ -157,12 +157,16 @@ class PapouchHTTPClient(PapouchTransport):
 
         timeout = aiohttp.ClientTimeout(total=TIMEOUT_REQUEST)
 
+        headers = kwargs.get("headers", {})
+        if self._auth_headers:
+            headers.update(self._auth_headers)
+        kwargs["headers"] = headers
+
         try:
             async with self.session.request(
                 method,
                 self.base_url + endpoint,
                 timeout=timeout,
-                auth=self._auth_headers,
                 **kwargs,
             ) as response:
                 if response.status != 200:
