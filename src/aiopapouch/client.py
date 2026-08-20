@@ -1,9 +1,9 @@
 """This file is used for communicating with the device."""
 
 import base64
-from abc import ABC, abstractmethod
 import logging
 import re
+from abc import ABC, abstractmethod
 from typing import Any, override
 
 import aiohttp
@@ -20,6 +20,7 @@ SAVE_URL = "save.xml"
 ENCODING = "iso-8859-2"
 WEB_MODE_INDEX = 3
 TIMEOUT_REQUEST = 10
+DEFAULT_WEB_PORT = 80
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,12 +79,17 @@ class PapouchHTTPClient(PapouchTransport):
     """API client for communicating with a device."""
 
     def __init__(
-        self, ip_address: str, session: aiohttp.ClientSession, password: str = ""
+        self,
+        ip_address: str,
+        session: aiohttp.ClientSession,
+        password: str = "",
+        web_port: int = DEFAULT_WEB_PORT,
     ) -> None:
         """Constructor for API client."""
-        self.base_url = f"http://{ip_address}/"
+        self.base_url = f"http://{ip_address}:{web_port}/"
         self.session = session
         self.ip_address = ip_address
+        self.web_port = web_port
 
         if password != "":
             auth_string = f"admin:{password}"
@@ -240,6 +246,4 @@ class PapouchHTTPClient(PapouchTransport):
     def _check_exceptions_device_web_mode(self, device_name: str) -> bool:
         if device_name == "TME":
             return True
-        if "Papago" in device_name and "ETH" in device_name:
-            return True
-        return False
+        return "Papago" in device_name and "ETH" in device_name
