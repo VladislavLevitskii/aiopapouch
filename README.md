@@ -113,8 +113,6 @@ if __name__ == "__main__":
 
 ```
 
-Zde je upravená verze. Popis metody `get_supported_numbers` a `set_number_value` nyní jasně vysvětluje, že tyto metody neslouží k zadávání obecných číselných hodnot, ale specificky k manipulaci s čítači (jejich snižování nebo přímé nastavení). Přidal jsem také volání této metody do ukázky kódu.
-
 ### Device Control and Configuration
 
 In addition to fetching telemetry data, the library allows controlling devices and modifying their settings. Because supported entities (switches, selects, numbers, buttons) vary by hardware model and configuration, `PapouchDevice` provides introspection methods (`get_supported_switches`, `get_supported_selects`, `get_supported_buttons`, `get_supported_numbers`) to discover available controls and their valid parameters before executing control methods.
