@@ -140,7 +140,6 @@ class QuidoBase(PapouchDevice, ABC):
                     self.TEMPERATURE_SNS_TYPE, str(i)
                 ),
                 "type": "temperature",
-                "translation": "sensor_temperature",
                 "device_class": "temperature",
                 "state_class": "measurement",
                 "unit": self.temperature_unit,
@@ -153,8 +152,8 @@ class QuidoBase(PapouchDevice, ABC):
                 "item_id": str(i),
                 "value_key": self._generate_semantic_key(self.PULSES, str(i)),
                 "type": "counter",
-                "translation": "sensor_counter_placeholder",
-                "placeholder": {"placeholder": str(i)},
+                "translation": "counter_custom",
+                "placeholder": {"name": str(i)},
                 "state_class": "total",
                 "unit": "pulses",
             }
