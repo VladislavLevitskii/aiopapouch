@@ -139,7 +139,7 @@ class QuidoBase(PapouchDevice, ABC):
                 ),
                 "type": "temperature",
                 "data_type": "temperature",
-                "name": str(i),
+                "name": None,
                 "unit": self.temperature_unit,
             }
             for i in range(1, self.number_temp + 1)
@@ -287,7 +287,8 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
                 case "din":
                     parsed_data["input"][item_id] = int(element.attrib.get("val", "0"))
-                    parsed_data["counter"][item_id] = int(
+                    semantic_key = self._generate_semantic_key(self.PULSES, item_id)
+                    parsed_data["counter"][semantic_key] = int(
                         element.attrib.get("cnt", "0")
                     )
 

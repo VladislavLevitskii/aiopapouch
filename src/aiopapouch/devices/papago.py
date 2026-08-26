@@ -195,15 +195,15 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             parsed_data["input"][item_id] = bin_val == "1"
 
         val_str = element.attrib.get("val")
+        semantic_key = self._generate_semantic_key(self.PULSES, item_id)
+
         if val_str is not None:
             try:
                 parts = val_str.split()
-
                 clean_val = parts[0]
-
-                parsed_data["counter"][item_id] = float(clean_val)
+                parsed_data["counter"][semantic_key] = float(clean_val)
             except ValueError, IndexError:
-                parsed_data["counter"][item_id] = None
+                parsed_data["counter"][semantic_key] = None
 
     async def _parse_dout_element(
         self, element: defused_ET.Element, parsed_data: dict[str, dict[str, Any]]
@@ -381,15 +381,24 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
                     case self.WIND_DIRECTION_SNS_TYPE:
                         unit_str = self._get_unit(sns_type, unit_code)
-
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "wind_direction",
-                            "name": sensor_name,
-                            "unit": unit_str if unit_str == "°" else None,
-                        })
+                        if unit_str == "°":
+                            sensors.append({
+                                "item_id": sub_id,
+                                "value_key": semantic_key,
+                                "type": "sensor",
+                                "data_type": "wind_direction",
+                                "name": sensor_name,
+                                "unit": "°",
+                            })
+                        else:
+                            sensors.append({
+                                "item_id": sub_id,
+                                "value_key": semantic_key,
+                                "type": "sensor",
+                                "data_type": "wind_direction_text",
+                                "name": sensor_name,
+                                "unit": None,
+                            })
 
                     case self.WIND_SPEED_SNS_TYPE:
                         sensors.append({
@@ -405,22 +414,32 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                         unit_str = self._get_unit(sns_type, unit_code)
 
                         if unit_code == "0":
-                            time_label = "15 Min"
+                            sensors.append({
+                                "item_id": sub_id,
+                                "value_key": semantic_key,
+                                "type": "sensor",
+                                "data_type": "rain",
+                                "name": f"{sensor_name} 15 Min",
+                                "unit": unit_str,
+                            })
                         elif unit_code == "1":
-                            time_label = "Hourly"
+                            sensors.append({
+                                "item_id": sub_id,
+                                "value_key": semantic_key,
+                                "type": "sensor",
+                                "data_type": "precipitation_intensity",
+                                "name": f"{sensor_name} Hourly",
+                                "unit": unit_str,
+                            })
                         elif unit_code == "2":
-                            time_label = "Daily"
-                        else:
-                            time_label = ""
-
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "rain",
-                            "name": f"{sensor_name} {time_label}",
-                            "unit": unit_str,
-                        })
+                            sensors.append({
+                                "item_id": sub_id,
+                                "value_key": semantic_key,
+                                "type": "sensor",
+                                "data_type": "precipitation_intensity",
+                                "name": f"{sensor_name} Daily",
+                                "unit": unit_str,
+                            })
 
         return sensors
 
