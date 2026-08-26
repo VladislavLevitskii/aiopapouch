@@ -257,14 +257,11 @@ class PapouchDevice(ABC):
         Expected dictionary structure:
         {
             "item_id": str | int,
-            "value_key": str, # Look up in parsed data
+            "value_key": str,
             "type": str,
-            "name": str, # Fallback name
-            "translation": str (Optional),
-            "placeholder": dict[str, str] (Optional),
+            "data_type": str,
+            "name": str,
             "use_custom_name": bool (Optional),
-            "device_class": str (Optional),
-            "state_class": str (Optional),
             "unit": str (Optional),
         }
         """

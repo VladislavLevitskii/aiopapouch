@@ -167,8 +167,8 @@ class TH2E(PapouchDevice, HTTPMixin):
                         "item_id": item_id,
                         "value_key": semantic_key,
                         "type": "sensor",
-                        "device_class": "temperature",
-                        "state_class": "measurement",
+                        "data_type": "temperature",
+                        "name": str(item_id),
                         "unit": self._get_unit(sns_type, unit_code),
                     })
 
@@ -177,8 +177,8 @@ class TH2E(PapouchDevice, HTTPMixin):
                         "item_id": item_id,
                         "value_key": semantic_key,
                         "type": "sensor",
-                        "device_class": "humidity",
-                        "state_class": "measurement",
+                        "data_type": "humidity",
+                        "name": str(item_id),
                         "unit": self._get_unit(sns_type, unit_code),
                     })
 
@@ -187,9 +187,8 @@ class TH2E(PapouchDevice, HTTPMixin):
                         "item_id": item_id,
                         "value_key": semantic_key,
                         "type": "sensor",
-                        "translation": "dew_point",
-                        "device_class": "temperature",
-                        "state_class": "measurement",
+                        "data_type": "dew_point",
+                        "name": str(item_id),
                         "unit": self._get_unit(sns_type, unit_code),
                     })
 

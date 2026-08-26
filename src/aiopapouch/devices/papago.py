@@ -313,9 +313,9 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 "item_id": item_id,
                 "value_key": self._generate_semantic_key(self.PULSES, item_id),
                 "type": "counter",
+                "data_type": "counter",
                 "name": item_data.name,
                 "use_custom_name": True,
-                "state_class": "total",
                 "unit": item_data.unit,
             })
 
@@ -334,10 +334,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "temperature_custom",
-                            "placeholder": {"name": sensor_name},
-                            "device_class": "temperature",
-                            "state_class": "measurement",
+                            "data_type": "temperature",
+                            "name": sensor_name,
                             "unit": self._get_unit(sns_type, unit_code),
                         })
 
@@ -346,11 +344,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
+                            "data_type": "humidity",
                             "name": f"{sensor_name} Humidity",
-                            "translation": "humidity_custom",
-                            "placeholder": {"name": sensor_name},
-                            "device_class": "humidity",
-                            "state_class": "measurement",
                             "unit": self._get_unit(sns_type, unit_code),
                         })
 
@@ -359,10 +354,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "dew_point_custom",
-                            "placeholder": {"name": sensor_name},
-                            "device_class": "temperature",
-                            "state_class": "measurement",
+                            "data_type": "dew_point",
+                            "name": sensor_name,
                             "unit": self._get_unit(sns_type, unit_code),
                         })
 
@@ -371,10 +364,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "co2_custom",
-                            "placeholder": {"name": sensor_name},
-                            "device_class": "carbon_dioxide",
-                            "state_class": "measurement",
+                            "data_type": "co2",
+                            "name": sensor_name,
                             "unit": self._get_unit(sns_type, unit_code),
                         })
 
@@ -383,39 +374,30 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "pressure_custom",
-                            "placeholder": {"name": sensor_name},
-                            "device_class": "atmospheric_pressure",
-                            "state_class": "measurement",
+                            "data_type": "pressure",
+                            "name": sensor_name,
                             "unit": self._get_unit(sns_type, unit_code),
                         })
 
                     case self.WIND_DIRECTION_SNS_TYPE:
                         unit_str = self._get_unit(sns_type, unit_code)
 
-                        sensor_def = {
+                        sensors.append({
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "wind_direction_custom",
-                            "placeholder": {"name": sensor_name},
-                        }
-
-                        if unit_str == "°":
-                            sensor_def["unit"] = unit_str
-                            sensor_def["state_class"] = "measurement"
-
-                        sensors.append(sensor_def)
+                            "data_type": "wind_direction",
+                            "name": sensor_name,
+                            "unit": unit_str if unit_str == "°" else None,
+                        })
 
                     case self.WIND_SPEED_SNS_TYPE:
                         sensors.append({
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "wind_speed_custom",
-                            "placeholder": {"name": sensor_name},
-                            "device_class": "wind_speed",
-                            "state_class": "measurement",
+                            "data_type": "wind_speed",
+                            "name": sensor_name,
                             "unit": self._get_unit(sns_type, unit_code),
                         })
 
@@ -424,31 +406,21 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
                         if unit_code == "0":
                             time_label = "15 Min"
-                            dev_class = None
                         elif unit_code == "1":
                             time_label = "Hourly"
-                            dev_class = "precipitation_intensity"
                         elif unit_code == "2":
                             time_label = "Daily"
-                            dev_class = "precipitation_intensity"
                         else:
                             time_label = ""
-                            dev_class = None
 
-                        sensor_def = {
+                        sensors.append({
                             "item_id": sub_id,
                             "value_key": semantic_key,
                             "type": "sensor",
-                            "translation": "rain_custom",
-                            "placeholder": {"name": f"{sensor_name} {time_label}"},
-                            "state_class": "measurement",
+                            "data_type": "rain",
+                            "name": f"{sensor_name} {time_label}",
                             "unit": unit_str,
-                        }
-
-                        if dev_class:
-                            sensor_def["device_class"] = dev_class
-
-                        sensors.append(sensor_def)
+                        })
 
         return sensors
 

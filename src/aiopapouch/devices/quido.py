@@ -131,8 +131,6 @@ class QuidoBase(PapouchDevice, ABC):
 
     @override
     def get_supported_sensors(self) -> list[dict[str, Any]]:
-        """Return the configuration data for read-only sensors."""
-
         sensors: list[dict[str, Any]] = [
             {
                 "item_id": str(i),
@@ -140,8 +138,8 @@ class QuidoBase(PapouchDevice, ABC):
                     self.TEMPERATURE_SNS_TYPE, str(i)
                 ),
                 "type": "temperature",
-                "device_class": "temperature",
-                "state_class": "measurement",
+                "data_type": "temperature",
+                "name": str(i),
                 "unit": self.temperature_unit,
             }
             for i in range(1, self.number_temp + 1)
@@ -152,9 +150,8 @@ class QuidoBase(PapouchDevice, ABC):
                 "item_id": str(i),
                 "value_key": self._generate_semantic_key(self.PULSES, str(i)),
                 "type": "counter",
-                "translation": "counter_custom",
-                "placeholder": {"name": str(i)},
-                "state_class": "total",
+                "data_type": "counter",
+                "name": str(i),
                 "unit": "pulses",
             }
             for i in range(1, self.number_inputs + 1)

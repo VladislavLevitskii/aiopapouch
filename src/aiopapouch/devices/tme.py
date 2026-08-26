@@ -136,7 +136,6 @@ class TMEBase(PapouchDevice, ABC):
 
     @override
     def get_supported_sensors(self) -> list[dict[str, Any]]:
-        """Unified method for returning sensors for Home Assistant."""
         sensors = []
 
         for sensor_data in self.sensors.values():
@@ -153,10 +152,8 @@ class TMEBase(PapouchDevice, ABC):
                         "item_id": sub_id,
                         "value_key": semantic_key,
                         "type": "sensor",
-                        "translation": "temperature_custom",
-                        "placeholder": {"name": sensor_name},
-                        "device_class": "temperature",
-                        "state_class": "measurement",
+                        "data_type": "temperature",
+                        "name": sensor_name,
                         "unit": unit,
                     })
                 elif sns_type == "2":
@@ -164,10 +161,8 @@ class TMEBase(PapouchDevice, ABC):
                         "item_id": sub_id,
                         "value_key": semantic_key,
                         "type": "sensor",
-                        "translation": "humidity_custom",
-                        "placeholder": {"name": sensor_name},
-                        "device_class": "humidity",
-                        "state_class": "measurement",
+                        "data_type": "humidity",
+                        "name": sensor_name,
                         "unit": unit,
                     })
                 elif sns_type == "batt":
@@ -175,10 +170,8 @@ class TMEBase(PapouchDevice, ABC):
                         "item_id": sub_id,
                         "value_key": self._generate_semantic_key(self.BATTERY, sub_id),
                         "type": "sensor",
-                        "translation": "batt_custom",
-                        "placeholder": {"name": sensor_name},
-                        "device_class": "battery",
-                        "state_class": "measurement",
+                        "data_type": "battery",
+                        "name": sensor_name,
                         "unit": "%",
                     })
                 elif sns_type == "rssi":
@@ -188,10 +181,8 @@ class TMEBase(PapouchDevice, ABC):
                             self.SIGNAL_STRENGTH, sub_id
                         ),
                         "type": "sensor",
-                        "translation": "rsii_custom",
-                        "placeholder": {"name": sensor_name},
-                        "device_class": "signal_strength",
-                        "state_class": "measurement",
+                        "data_type": "signal_strength",
+                        "name": sensor_name,
                         "unit": "dBm",
                     })
 
