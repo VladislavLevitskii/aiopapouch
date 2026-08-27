@@ -91,12 +91,10 @@ class PapouchHTTPClient(PapouchTransport):
         self.ip_address = ip_address
         self.web_port = web_port
 
-        if password != "":
-            auth_string = f"admin:{password}"
-            b64_auth = base64.b64encode(auth_string.encode("utf-8")).decode("ascii")
-            self._auth_headers = {"Authorization": f"Basic {b64_auth}"}
-        else:
-            self._auth_headers = {}
+        auth_string = f"admin:{password}" if password != "" else ":"
+        b64_auth = base64.b64encode(auth_string.encode("utf-8")).decode("ascii")
+        self._auth_headers = {"Authorization": f"Basic {b64_auth}"}
+
 
     @property
     @override
