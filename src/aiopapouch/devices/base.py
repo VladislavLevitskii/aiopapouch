@@ -1,13 +1,13 @@
-"""This file contains base classes that define Papouch devices."""
+"""File contains base classes that define Papouch devices."""
 
+import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
-import xml.etree.ElementTree as ET
 
 import defusedxml.ElementTree as defused_ET
 
-from ..client import PapouchHTTPClient
-from ..exceptions import DeviceLogicError, DeviceResponseError
+from aiopapouch.client import PapouchHTTPClient
+from aiopapouch.exceptions import DeviceLogicError, DeviceResponseError
 
 ERROR_STATUS = "0"
 
@@ -63,7 +63,7 @@ class HTTPMixin(HttpMixinHost):
         self._check_response(response, str(params))
 
     def _check_response(self, response_text: str, request_text: str) -> None:
-        """Checks the response of the requests."""
+        """Check the response of the requests."""
 
         root = defused_ET.fromstring(response_text)
         result_tag = find_tag(root, "result")
@@ -207,10 +207,7 @@ class PapouchDevice(ABC):
         Expected dictionary structure:
         {
             "cmd": str,
-            "name": str, # Fallback name
-            "translation": str (Optional), # Key in strings.json
-            "placeholder": dict[str, str] (Optional), # Translation formatting vars
-            "use_custom_name": bool (Optional), # If True, 'name' is forced and translation ignored
+            "name": str | None,
         }
         """
 
@@ -222,11 +219,7 @@ class PapouchDevice(ABC):
         {
             "item_id": str,
             "type": str,
-            "name": str, # Fallback name
-            "translation": str (Optional),
-            "placeholder": dict[str, str] (Optional),
-            "use_custom_name": bool (Optional),
-            "device_class": str (Optional),
+            "name": str | None,
         }
         """
 
@@ -238,15 +231,10 @@ class PapouchDevice(ABC):
         {
             "item_id": str,
             "category": str,
-            "type": str,
-            "name": str, # Fallback name
-            "translation": str (Optional),
-            "placeholder": dict[str, str] (Optional),
-            "use_custom_name": bool (Optional),
+            "name": str | None,
             "min_value": float | int,
             "max_value": float | int,
             "step": float | int,
-            "unit": str (Optional),
         }
         """
 
@@ -260,9 +248,8 @@ class PapouchDevice(ABC):
             "value_key": str,
             "type": str,
             "data_type": str,
-            "name": str,
-            "use_custom_name": bool (Optional),
-            "unit": str (Optional),
+            "name": str | None,
+            "unit": str,
         }
         """
 
@@ -273,10 +260,7 @@ class PapouchDevice(ABC):
         Expected dictionary structure:
         {
             "item_id": str,
-            "name": str, # Fallback name
-            "translation": str (Optional),
-            "placeholder": dict[str, str] (Optional),
-            "use_custom_name": bool (Optional),
+            "name": str | None,
         }
         """
 
@@ -288,11 +272,8 @@ class PapouchDevice(ABC):
         {
             "item_id": str,
             "category": str,
-            "name": str, # Fallback name
+            "name": str | None,
             "options": list[str],
-            "translation": str (Optional),
-            "placeholder": dict[str, str] (Optional),
-            "use_custom_name": bool (Optional),
         }
         """
 

@@ -62,45 +62,30 @@ class QuidoBase(PapouchDevice, ABC):
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
-        """Return the configuration data for buttons that supports Quido."""
         return [
-            {
-                "cmd": "connect_all_coils",
-                "translation": "connect_all_coils",
-            },
-            {
-                "cmd": "disconnect_all_coils",
-                "translation": "disconnect_all_coils",
-            },
-            {
-                "cmd": "reset_all_counters",
-                "translation": "reset_all_counters",
-            },
+            {"cmd": "connect_all_coils", "name": None},
+            {"cmd": "disconnect_all_coils", "name": None},
+            {"cmd": "reset_all_counters", "name": None},
         ]
 
     @override
     def get_supported_binary_sensors(self) -> list[dict[str, Any]]:
-        """Return the configuration data for binary sensors."""
         return [
             {
                 "item_id": str(i),
                 "type": "input",
-                "translation": "input_placeholder",
-                "placeholder": {"placeholder": str(i)},
+                "name": str(i),
             }
             for i in range(1, self.number_inputs + 1)
         ]
 
     @override
     def get_supported_numbers(self) -> list[dict[str, Any]]:
-        """Return the configuration data for number entities."""
         result = [
             {
                 "item_id": str(i),
                 "category": "decrease_counter",
-                "type": "counter",
-                "translation": "decrease_counter_placeholder",
-                "placeholder": {"placeholder": str(i)},
+                "name": str(i),
                 "min_value": 0,
                 "max_value": (2**self.size_counter_bits) - 1,
                 "step": 1,
@@ -110,23 +95,15 @@ class QuidoBase(PapouchDevice, ABC):
         result.extend(
             {
                 "item_id": str(i),
-                "category": f"output_{action}_time",
-                "type": "switch",
-                "name": f"Output {i} {action} for duration (s)",
-                "translation": "output_on_duration_placeholder"
-                if action == "on"
-                else "output_off_duration_placeholder",
-                "placeholder": {"placeholder": str(i)},
+                "category": f"output_{action}_duration",
+                "name": str(i),
                 "min_value": 0.5,
                 "max_value": 127.5,
                 "step": 0.5,
-                "unit": "s",
-                "mode": "box",
             }
             for i in range(1, self.number_outputs + 1)
             for action in ("on", "off")
         )
-
         return result
 
     @override
@@ -161,29 +138,25 @@ class QuidoBase(PapouchDevice, ABC):
 
     @override
     def get_supported_switches(self) -> list[dict[str, Any]]:
-        """Return the configuration data for switches."""
         return [
             {
                 "item_id": str(i),
-                "translation": "output_placeholder",
-                "placeholder": {"placeholder": str(i)},
+                "name": str(i),
             }
             for i in range(1, self.number_outputs + 1)
         ]
 
     @override
     def get_supported_selects(self) -> list[dict[str, Any]]:
-        """Return the configuration data for selects."""
-        selects = []
-        for i in range(1, self.number_inputs + 1):
-            selects.append({
+        return [
+            {
                 "item_id": str(i),
                 "category": "counter_mode",
-                "translation": "counter_mode",
-                "placeholder": {"placeholder": str(i)},
+                "name": str(i),
                 "options": self.COUNTER_MODES,
-            })
-        return selects
+            }
+            for i in range(1, self.number_inputs + 1)
+        ]
 
     @override
     async def execute_button_command(self, cmd_type: str) -> None:

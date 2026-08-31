@@ -201,13 +201,11 @@ class TH2E(PapouchDevice, HTTPMixin):
 
     @override
     def get_supported_selects(self) -> list[dict[str, Any]]:
-        """Get supported modes of the sensors."""
         return [
             {
-                "item_id": 1,
+                "item_id": "1",
                 "category": "sensor_type",
-                "translation": "sensor_type",
-                "placeholder": {"placeholder": "Sensor"},
+                "name": None,
                 "options": self.SENSOR_TYPES,
             }
         ]
