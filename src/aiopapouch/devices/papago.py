@@ -455,7 +455,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         for item_id, input_data in self.inputs.items():
             selects.append({
                 "item_id": str(int(item_id) + self.INPUT_ID_INCREMENT),
-                "category": "input_type",
+                "category": "counter_mode",
                 "name": input_data.name,
                 "options": self.COUNTER_MODES,
             })
@@ -714,7 +714,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 if 0 <= type_idx < len(self.SENSOR_TYPES):
                     return self.SENSOR_TYPES[type_idx]
 
-        if category == "input_type":
+        if category == "counter_mode":
             real_input_id = str(int(item_id) - self.INPUT_ID_INCREMENT)
             input_item = self.inputs.get(real_input_id)
             if input_item and str(input_item.type_cnt).isdigit():
@@ -734,7 +734,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
             await self._set_sensor_type(item_id, type_idx)
 
-        if category == "input_type":
+        if category == "counter_mode":
             try:
                 type_idx = str(self.COUNTER_MODES.index(option))
             except ValueError:
@@ -955,7 +955,9 @@ class PapagoETH_METEO(PapagoETH):
             )
             selects.append({
                 "item_id": item_id,
-                "category": "sensor_type",
+                "category": "sensor_type_meteo_c"
+                if item_id == "3"
+                else "sensor_type_meteo_ab",
                 "name": sensor_name,
                 "options": list(options_dict.values()),
             })
@@ -963,7 +965,7 @@ class PapagoETH_METEO(PapagoETH):
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
-        if category == "sensor_type":
+        if category in ("sensor_type", "sensor_type_meteo_ab", "sensor_type_meteo_c"):
             sns_type_code = self.sensors_types.get(item_id)
             if sns_type_code is not None:
                 options_dict = (
@@ -974,7 +976,7 @@ class PapagoETH_METEO(PapagoETH):
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
-        if category == "sensor_type":
+        if category in ("sensor_type", "sensor_type_meteo_ab", "sensor_type_meteo_c"):
             options_dict = (
                 self.SENSOR_TYPES_C if item_id == "3" else self.SENSOR_TYPES_AB
             )
