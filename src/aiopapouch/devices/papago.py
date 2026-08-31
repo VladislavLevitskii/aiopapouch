@@ -455,7 +455,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         for item_id, input_data in self.inputs.items():
             selects.append({
                 "item_id": str(int(item_id) + self.INPUT_ID_INCREMENT),
-                "category": "counter_mode",
+                "category": "input_type",
                 "name": input_data.name,
                 "options": self.COUNTER_MODES,
             })
@@ -955,9 +955,7 @@ class PapagoETH_METEO(PapagoETH):
             )
             selects.append({
                 "item_id": item_id,
-                "category": "sensor_type_meteo_c"
-                if item_id == "3"
-                else "sensor_type_meteo_ab",
+                "category": "sensor_type",
                 "name": sensor_name,
                 "options": list(options_dict.values()),
             })
