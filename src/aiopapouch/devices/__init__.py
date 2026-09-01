@@ -1,26 +1,52 @@
 """This file is used as a hub for imports."""
 
-from ..client import PapouchHTTPClient
+from collections.abc import Callable
+from typing import NamedTuple
+
+from ..client import PapouchHTTPClient, PapouchSerialClient
 from .base import PapouchDevice
 from .papago import async_setup_papago
 from .quido import async_setup_quido
 from .th2e import async_setup_th2e
+from .tht2 import async_setup_tht2
 from .tme import async_setup_tme
 
+SERIAL = "serial"
+NETWORK = "network"
+
+
+class DeviceHandler(NamedTuple):
+    """Represents device handler with async setup and supported types."""
+
+    setup_func: Callable
+    supported_types: set[str]
+
+
 DEVICE_SETUP_HANDLERS = {
-    "Quido": async_setup_quido,
-    "TH2E": async_setup_th2e,
-    "TME": async_setup_tme,
-    "Papago": async_setup_papago,
+    "Quido": DeviceHandler(async_setup_quido, {NETWORK}),
+    "TH2E": DeviceHandler(async_setup_th2e, {NETWORK}),
+    "TME": DeviceHandler(async_setup_tme, {NETWORK}),
+    "Papago": DeviceHandler(async_setup_papago, {NETWORK}),
+    "THT2": DeviceHandler(async_setup_tht2, {SERIAL}),
 }
 
 
-def is_device_supported(device_name: str | None, protocol: str = "http") -> bool:
-    """Check if the extracted device name matches any supported prefix."""
+def _get_device_handler(
+    device_name: str | None, device_type: str
+) -> DeviceHandler | None:
     if not device_name:
-        return False
+        return None
 
-    return any(prefix in device_name for prefix in DEVICE_SETUP_HANDLERS)
+    for prefix, handler in DEVICE_SETUP_HANDLERS.items():
+        if prefix in device_name and device_type in handler.supported_types:
+            return handler
+
+    return None
+
+
+def is_device_supported(device_name: str | None, device_type: str) -> bool:
+    """Check if the extracted device name matches any supported prefix and type of the communication."""
+    return _get_device_handler(device_name, device_type) is not None
 
 
 async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice | None:
@@ -31,16 +57,34 @@ async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice 
 
     device_name, _ = await api_client.get_device_info()
 
-    if not is_device_supported(device_name):
+    handler = _get_device_handler(device_name, NETWORK)
+    if not handler:
         return None
 
-    assert device_name is not None
-
-    for prefix, setup_func in DEVICE_SETUP_HANDLERS.items():
-        if prefix in device_name:
-            return await setup_func(api_client)
-
-    return None
+    return await handler.setup_func(api_client)
 
 
-__all__ = ["PapouchDevice", "create_network_device", "is_device_supported"]
+async def create_serial_device(api_client: PapouchSerialClient) -> PapouchDevice | None:
+    """Create a proper serial device instance dynamically based on the fetched info.
+
+    Returns None if the device is not supported.
+    """
+
+    pkt = await api_client.get_info()
+    raw_name = pkt.data
+    result = raw_name.decode("ascii")
+    device_name = result.split(";")[0]
+
+    handler = _get_device_handler(device_name, SERIAL)
+    if not handler:
+        return None
+
+    return await handler.setup_func(api_client)
+
+
+__all__ = [
+    "PapouchDevice",
+    "create_network_device",
+    "create_serial_device",
+    "is_device_supported",
+]

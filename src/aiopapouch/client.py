@@ -184,6 +184,7 @@ class PapouchHTTPClient:
             return True
         return "Papago" in device_name and "ETH" in device_name
 
+
 class PapouchSerialClient:
     """API client for communicating with a device via RS485."""
 
@@ -193,16 +194,27 @@ class PapouchSerialClient:
         self.lock = asyncio.Lock()
 
     async def open(self) -> None:
+        """Open port."""
         await self._spinel_client.open()
 
     async def close(self) -> None:
+        """Close port."""
         await self._spinel_client.close()
 
     async def write_command(
         self, addr: int, inst: int, context: str, data: bytes = b""
     ) -> Packet97:
+        """Write command. Return Spinel97 Packet"""
         async with self.lock:
             try:
-                return await self._spinel_client.request(addr=addr, inst=inst, data=data)
+                return await self._spinel_client.request(
+                    addr=addr, inst=inst, data=data
+                )
             except SpinelError as err:
-                raise DeviceConnectionError(f"Device: {context} returned: {err}")
+                raise DeviceConnectionError(
+                    f"Device: {context} returned: {err}"
+                ) from err
+
+    async def get_info(self, address: int) -> Packet97:
+        """Get info in Spinel97 packet."""
+        return await self._spinel_client.info(address)

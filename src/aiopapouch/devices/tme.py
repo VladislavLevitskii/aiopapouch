@@ -415,8 +415,6 @@ async def async_setup_tme(transport: PapouchHTTPClient) -> TMEBase | None:
     info = await transport.fetch_info()
     settings = await transport.fetch_settings()
 
-    # if transport.protocol == "http":
-
     root_info = defused_ET.fromstring(info)
     heartbeat_tag = find_tag(root_info, "heartbeat")
 

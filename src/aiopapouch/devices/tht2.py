@@ -36,7 +36,15 @@ class THT2(PapouchDevice):
         """Return device's identifier."""
         return self._serial_number
 
-    def __init__(self, api_client: PapouchSerialClient, name: str, location: str, serial_number: str, address: int, unit: str = "0") -> None:
+    def __init__(
+        self,
+        api_client: PapouchSerialClient,
+        name: str,
+        location: str,
+        serial_number: str,
+        address: int,
+        unit: str = "0",
+    ) -> None:
         """Constructor for THT2 device."""
 
         self.api_client = api_client
@@ -50,7 +58,9 @@ class THT2(PapouchDevice):
 
     async def _update_data(self) -> bytes:
         """Fetch raw bytes of the fresh data from the serial device."""
-        packet = await self.api_client.write_command(self._address, 0x51, f"{self.name} - {self.location}", b"\x00")
+        packet = await self.api_client.write_command(
+            self._address, 0x51, f"{self.name} - {self.location}", b"\x00"
+        )
         return packet.data
 
     def _parse_raw_data(self, data: bytes) -> dict:
@@ -68,12 +78,14 @@ class THT2(PapouchDevice):
             self.sensors[item_id] = {
                 "id": item_id,
                 "type": sns_type,
-                "unit": self._unit if item_id != "2" else "0", # humidity ("2") has always 0
+                "unit": self._unit
+                if item_id != "2"
+                else "0",  # humidity ("2") has always 0
             }
 
             dev_index = chunk[0]
             status = chunk[1]
-            raw_value = int.from_bytes(chunk[2:4], byteorder='big', signed=True)
+            raw_value = int.from_bytes(chunk[2:4], byteorder="big", signed=True)
 
             item_id = str(dev_index)
             sns_type = str(dev_index)
@@ -208,15 +220,20 @@ class THT2(PapouchDevice):
     def _parse_initial_settings(self) -> None:
         """Unused in THT2."""
 
+
 async def _get_name(transport: PapouchSerialClient, address: int) -> bytes:
     """Return raw bytes of the name."""
-    packet = await transport.write_command(address, 0xF3, "Unknown device - Unknown location")
+    packet = await transport.write_command(
+        address, 0xF3, "Unknown device - Unknown location"
+    )
     return packet.data
+
 
 async def _get_location(transport: PapouchSerialClient, address: int) -> bytes:
     """Return raw bytes of the name."""
     packet = await transport.write_command(address, 0xF2, "Unknown location")
     return packet.data
+
 
 def _parse_name(raw_name: bytes) -> str:
     """Parse name from raw bytes."""
@@ -224,12 +241,16 @@ def _parse_name(raw_name: bytes) -> str:
     result = result.split(";")[0]
     return result
 
+
 def _parse_location(raw_location: bytes) -> str:
     """Parse location from raw bytes."""
     return raw_location.decode("ascii")
 
-async def async_setup_tht2(transport: PapouchSerialClient, address: int, serial_number: str) -> THT2:
-    """Async factory for TH2E device."""
+
+async def async_setup_tht2(
+    transport: PapouchSerialClient, address: int, serial_number: str
+) -> THT2:
+    """Async factory for THT2 device."""
 
     raw_name = await _get_name(transport, address)
     name = _parse_name(raw_name)
