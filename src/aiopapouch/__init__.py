@@ -1,12 +1,12 @@
 """This file is used as a hub for imports."""
 
-from .client import PapouchHTTPClient, PapouchTransport
-from .devices import PapouchDevice, create_device, is_device_supported
+from .client import PapouchHTTPClient, PapouchSerialClient
+from .devices import PapouchDevice, create_network_device, is_device_supported
 
 __all__ = [
     "PapouchDevice",
     "PapouchHTTPClient",
-    "PapouchTransport",
-    "create_device",
+    "PapouchSerialClient"
+    "create_network_device",
     "is_device_supported",
 ]

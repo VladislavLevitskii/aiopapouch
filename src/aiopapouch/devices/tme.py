@@ -7,7 +7,7 @@ from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
-from ..client import PapouchHTTPClient, PapouchTransport
+from ..client import PapouchHTTPClient
 from ..exceptions import DeviceParseError, DeviceResponseError
 from .base import PapouchDevice, find_tag
 
@@ -38,11 +38,11 @@ class TMEBase(PapouchDevice, ABC):
 
     @override
     @property
-    def mac_address(self) -> str:
-        """Return device's MAC address."""
+    def identifier(self) -> str:
+        """Return device's identifier."""
         return self._mac_address
 
-    def __init__(self, api_client: PapouchTransport, info: str, settings: str) -> None:
+    def __init__(self, api_client: PapouchHTTPClient, info: str, settings: str) -> None:
         """Constructor for TME device."""
 
         self.api_client = cast(PapouchHTTPClient, api_client)
@@ -57,7 +57,7 @@ class TMEBase(PapouchDevice, ABC):
 
         self._name = self.get_name()
         self._location = self.get_location()
-        self._mac_address = self.get_mac_address()
+        self._mac_address = self.get_identifier()
 
         self.sensors: dict[str, dict[str, Any]] = {}
 
@@ -106,8 +106,8 @@ class TMEBase(PapouchDevice, ABC):
         return ""
 
     @override
-    def get_mac_address(self) -> str:
-        """Return the MAC address of the device."""
+    def get_identifier(self) -> str:
+        """Return the identifier of the device."""
 
         if self.settings_root is not None:
             box_12 = self.settings_root.find(".//set[@box='12']")
@@ -410,7 +410,7 @@ class TMERadioMulti(TMEBase):
             ) from exception
 
 
-async def async_setup_tme(transport: PapouchTransport) -> TMEBase | None:
+async def async_setup_tme(transport: PapouchHTTPClient) -> TMEBase | None:
     """Async factory for TME device."""
     info = await transport.fetch_info()
     settings = await transport.fetch_settings()

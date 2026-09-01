@@ -7,7 +7,7 @@ from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
-from ..client import PapouchHTTPClient, PapouchTransport
+from ..client import PapouchHTTPClient
 from ..exceptions import DeviceLogicError, DeviceParseError
 from .base import HTTPMixin, PapouchDevice, find_tag
 
@@ -20,7 +20,7 @@ class QuidoBase(PapouchDevice, ABC):
     def __init__(self) -> None:
         """Constructor for the base of the Quido."""
 
-        self.api_client: PapouchTransport
+        self.api_client: PapouchHTTPClient
 
         # These variables should be populated by the subclasses:
 
@@ -56,8 +56,8 @@ class QuidoBase(PapouchDevice, ABC):
 
     @override
     @property
-    def mac_address(self) -> str:
-        """Return device's MAC address."""
+    def identifier(self) -> str:
+        """Return device's identifier."""
         return self._mac_address
 
     @override
@@ -242,7 +242,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
     api_client: PapouchHTTPClient
 
-    def __init__(self, api_client: PapouchTransport, settings: str, info: str) -> None:
+    def __init__(self, api_client: PapouchHTTPClient, settings: str, info: str) -> None:
         """Constructor for Quido device."""
 
         super().__init__()
@@ -253,7 +253,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
         self._name = self.get_name()
         self._location = self.get_location()
-        self._mac_address = self.get_mac_address()
+        self._mac_address = self.get_identifier()
 
         self._parse_initial_settings()
 
@@ -500,8 +500,8 @@ class QuidoETH(QuidoBase, HTTPMixin):
         return ""
 
     @override
-    def get_mac_address(self) -> str:
-        """Return the MAC address of the device."""
+    def get_identifier(self) -> str:
+        """Return the identifier of the device."""
         box = self.settings_root.find(".//set[@box='12']")
         if box is not None:
             return str(box.attrib.get("mac", ""))
@@ -525,15 +525,8 @@ class QuidoRS485(QuidoBase):
     """NotImplemented."""
 
 
-async def async_setup_quido(transport: PapouchTransport) -> QuidoBase | None:
+async def async_setup_quido(transport: PapouchHTTPClient) -> QuidoBase | None:
     """Async factory for Quido devices."""
     settings = await transport.fetch_settings()
     info = await transport.fetch_info()
     return QuidoETH(transport, settings, info)
-
-    # if transport.protocol == "http":
-    #     return QuidoETH(transport, settings, info)
-
-    # return QuidoRS485(transport, settings, info)
-
-    # return None in case unsupported Quido

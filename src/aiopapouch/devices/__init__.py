@@ -1,6 +1,6 @@
 """This file is used as a hub for imports."""
 
-from ..client import PapouchTransport
+from ..client import PapouchHTTPClient
 from .base import PapouchDevice
 from .papago import async_setup_papago
 from .quido import async_setup_quido
@@ -15,7 +15,7 @@ DEVICE_SETUP_HANDLERS = {
 }
 
 
-def is_device_supported(device_name: str | None) -> bool:
+def is_device_supported(device_name: str | None, protocol: str = "http") -> bool:
     """Check if the extracted device name matches any supported prefix."""
     if not device_name:
         return False
@@ -23,7 +23,7 @@ def is_device_supported(device_name: str | None) -> bool:
     return any(prefix in device_name for prefix in DEVICE_SETUP_HANDLERS)
 
 
-async def create_device(api_client: PapouchTransport) -> PapouchDevice | None:
+async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice | None:
     """Create a proper device instance dynamically based on the fetched info.
 
     Returns None if the device is not supported.
@@ -43,4 +43,4 @@ async def create_device(api_client: PapouchTransport) -> PapouchDevice | None:
     return None
 
 
-__all__ = ["PapouchDevice", "create_device", "is_device_supported"]
+__all__ = ["PapouchDevice", "create_network_device", "is_device_supported"]
