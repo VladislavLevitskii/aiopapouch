@@ -2,7 +2,7 @@
 
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 import defusedxml.ElementTree as defused_ET
 
@@ -89,14 +89,14 @@ class PapouchDevice(ABC):
     Beware of the XML namespaces! Some devices can have some while other don't.
     """
 
-    COUNTER_MODES = [
+    COUNTER_MODES: ClassVar[list[str]] = [
         "off",
         "counts_descending_edges",
         "counts_ascending_edges",
         "counts_ascending_and_descending_edges",
     ]
 
-    SENSOR_TYPES = [
+    SENSOR_TYPES: ClassVar[list[str]] = [
         "unused",
         "temperature_humidity_th15",
         "temperature_ds",
@@ -116,7 +116,7 @@ class PapouchDevice(ABC):
     BATTERY = "10"
     SIGNAL_STRENGTH = "11"
 
-    TYPE_MAPPING = {
+    TYPE_MAPPING: ClassVar[dict] = {
         TEMPERATURE_SNS_TYPE: "temperature",
         HUMIDITY_SNS_TYPE: "humidity",
         DEW_POINT_SNS_TYPE: "dew_point",
@@ -130,7 +130,7 @@ class PapouchDevice(ABC):
         SIGNAL_STRENGTH: "signal_strength",
     }
 
-    UNIT_MAP = {
+    UNIT_MAP: ClassVar[dict] = {
         TEMPERATURE_SNS_TYPE: {"0": "°C", "1": "°F", "2": "K"},
         HUMIDITY_SNS_TYPE: {"0": "%"},
         DEW_POINT_SNS_TYPE: {
@@ -181,8 +181,8 @@ class PapouchDevice(ABC):
 
     @property
     @abstractmethod
-    def mac_address(self) -> str:
-        """Return device's MAC address."""
+    def identifier(self) -> str:
+        """Return device's identifier."""
 
     @abstractmethod
     async def parse_fresh_data(self, xml_data: str) -> dict:
@@ -321,8 +321,8 @@ class PapouchDevice(ABC):
         """Return the name of the device."""
 
     @abstractmethod
-    def get_mac_address(self) -> str:
-        """Return the MAC address of the device."""
+    def get_identifier(self) -> str:
+        """Return the identifier of the device."""
 
     @abstractmethod
     def _parse_initial_settings(self) -> None:

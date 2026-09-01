@@ -1,13 +1,14 @@
 """This file is used for communicating with the device."""
 
+import asyncio
 import base64
 import logging
 import re
-from abc import ABC, abstractmethod
-from typing import Any, override
+from typing import Any
 
 import aiohttp
 import defusedxml.ElementTree as defused_ET
+from pap_spinel import Packet97, SpinelClient, SpinelError
 
 from .exceptions import DeviceAuthError, DeviceConnectionError, DeviceLogicError
 
@@ -25,58 +26,8 @@ DEFAULT_WEB_PORT = 80
 _LOGGER = logging.getLogger(__name__)
 
 
-class PapouchTransport(ABC):
-    """Abstract base class for all Papouch communication methods."""
-
-    @abstractmethod
-    async def fetch_info(self) -> str:
-        """Fetch the device identification data."""
-
-    @abstractmethod
-    async def fetch_settings(self) -> str:
-        """Fetch the device configuration."""
-
-    @abstractmethod
-    async def fetch_data(self) -> str:
-        """Fetch the latest sensor readings."""
-
-    @abstractmethod
-    async def read_command(
-        self, params: dict, context: str, endpoint: str = SET_URL
-    ) -> str:
-        """Command for communicating with any device by using GET request.
-
-        Parameters are GET queries that will be added to the request.
-        Context string is used for error message
-        and it will be populated with a device information.
-        """
-
-    @abstractmethod
-    async def write_command(
-        self, payload: str, context: str, endpoint: str = SAVE_URL
-    ) -> str:
-        """Send a complex payload (like XML settings).
-
-        Context string is used for error message
-        and it will be populated with a device information.
-        """
-
-    @abstractmethod
-    async def get_device_info(self) -> tuple[str | None, str | None]:
-        """Return name and location of the device."""
-
-    @abstractmethod
-    async def get_device_mac(self) -> str:
-        """Return MAC of the device."""
-
-    @property
-    @abstractmethod
-    def protocol(self) -> str:
-        """Return type of the protocol to communicate with a device."""
-
-
-class PapouchHTTPClient(PapouchTransport):
-    """API client for communicating with a device."""
+class PapouchHTTPClient:
+    """API client for communicating with a device via network."""
 
     def __init__(
         self,
@@ -95,31 +46,22 @@ class PapouchHTTPClient(PapouchTransport):
         b64_auth = base64.b64encode(auth_string.encode("utf-8")).decode("ascii")
         self._auth_headers = {"Authorization": f"Basic {b64_auth}"}
 
-    @property
-    @override
-    def protocol(self) -> str:
-        return "http"
-
     async def _fetch(self, endpoint: str) -> str:
         raw_xml = await self._send_request("GET", endpoint, context=endpoint)
         return re.sub(r'\s+xmlns="[^"]+"', "", raw_xml)
 
-    @override
     async def fetch_info(self) -> str:
         """Fetching information about a device."""
         return await self._fetch(INFO_URL)
 
-    @override
     async def fetch_data(self) -> str:
         """Fetching data about a device."""
         return await self._fetch(DATA_URL)
 
-    @override
     async def fetch_settings(self) -> str:
         """Fetching settings about a device."""
         return await self._fetch(SETTINGS_URL)
 
-    @override
     async def get_device_info(self) -> tuple[str | None, str | None]:
         info = await self.fetch_info()
 
@@ -142,7 +84,6 @@ class PapouchHTTPClient(PapouchTransport):
 
         return (device_name, device_location)
 
-    @override
     async def get_device_mac(self) -> str:
         settings = await self.fetch_settings()
         root = defused_ET.fromstring(settings)
@@ -187,7 +128,6 @@ class PapouchHTTPClient(PapouchTransport):
                 f"Failed to connect to {context} - {self.ip_address}: {exception}"
             ) from exception
 
-    @override
     async def read_command(
         self, params: dict, context: str, endpoint: str = SET_URL
     ) -> str:
@@ -198,7 +138,6 @@ class PapouchHTTPClient(PapouchTransport):
 
         return await self._send_request("GET", endpoint, context, params=params)
 
-    @override
     async def write_command(
         self, payload: str, context: str, endpoint: str = SAVE_URL
     ) -> str:
@@ -244,3 +183,26 @@ class PapouchHTTPClient(PapouchTransport):
         if device_name == "TME":
             return True
         return "Papago" in device_name and "ETH" in device_name
+
+class PapouchSerialClient:
+    """API client for communicating with a device via RS485."""
+
+    def __init__(self, spinel_client: SpinelClient) -> None:
+        """Constructor for serial API client."""
+        self._spinel_client = spinel_client
+        self.lock = asyncio.Lock()
+
+    async def open(self) -> None:
+        await self._spinel_client.open()
+
+    async def close(self) -> None:
+        await self._spinel_client.close()
+
+    async def write_command(
+        self, addr: int, inst: int, context: str, data: bytes = b""
+    ) -> Packet97:
+        async with self.lock:
+            try:
+                return await self._spinel_client.request(addr=addr, inst=inst, data=data)
+            except SpinelError as err:
+                raise DeviceConnectionError(f"Device: {context} returned: {err}")

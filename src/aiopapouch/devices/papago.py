@@ -7,7 +7,7 @@ from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
-from ..client import PapouchHTTPClient, PapouchTransport
+from ..client import PapouchHTTPClient
 from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
 from .base import HTTPMixin, PapouchDevice, find_tag
 
@@ -72,13 +72,13 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
     @override
     @property
-    def mac_address(self) -> str:
-        """Return device's MAC address."""
+    def identifier(self) -> str:
+        """Return device's identifier."""
         return self._mac_address
 
     def __init__(
         self,
-        api_client: PapouchTransport,
+        api_client: PapouchHTTPClient,
         settings: str,
         device_name: str,
         location: str,
@@ -93,7 +93,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         self._name = device_name
         self._location = location
-        self._mac_address = self.get_mac_address()
+        self._mac_address = self.get_identifier()
 
         self.size_counter_bits = 32
 
@@ -232,8 +232,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         raise DeviceLogicError("Papago shouldn't use this method!")
 
     @override
-    def get_mac_address(self) -> str:
-        """Return the MAC address of the device."""
+    def get_identifier(self) -> str:
+        """Return the identifier of the device."""
         box = self.settings_root.find(".//set[@box='12']")
 
         if box is not None:
@@ -991,7 +991,7 @@ class PapagoETH_METEO(PapagoETH):
                 await self._set_sensor_type(item_id, type_idx)
 
 
-async def async_setup_papago(transport: PapouchTransport) -> PapagoETH | None:
+async def async_setup_papago(transport: PapouchHTTPClient) -> PapagoETH | None:
     """Async factory for Papago devices."""
     settings = await transport.fetch_settings()
     info = await transport.fetch_info()
