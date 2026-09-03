@@ -39,7 +39,6 @@ class THT2(PapouchDevice):
     def __init__(
         self,
         api_client: PapouchSerialClient,
-        name: str,
         location: str,
         serial_number: str,
         address: int,
@@ -48,7 +47,7 @@ class THT2(PapouchDevice):
         """Constructor for THT2 device."""
 
         self.api_client = api_client
-        self._name = name
+        self._name = "THT2"
         self._location = location
         self._serial_number = serial_number
         self._address = address
@@ -221,41 +220,9 @@ class THT2(PapouchDevice):
         """Unused in THT2."""
 
 
-async def _get_name(transport: PapouchSerialClient, address: int) -> bytes:
-    """Return raw bytes of the name."""
-    packet = await transport.write_command(
-        address, 0xF3, "Unknown device - Unknown location"
-    )
-    return packet.data
-
-
-async def _get_location(transport: PapouchSerialClient, address: int) -> bytes:
-    """Return raw bytes of the name."""
-    packet = await transport.write_command(address, 0xF2, "Unknown location")
-    return packet.data
-
-
-def _parse_name(raw_name: bytes) -> str:
-    """Parse name from raw bytes."""
-    result = raw_name.decode("ascii")
-    result = result.split(";")[0]
-    return result
-
-
-def _parse_location(raw_location: bytes) -> str:
-    """Parse location from raw bytes."""
-    return raw_location.decode("ascii")
-
-
 async def async_setup_tht2(
-    transport: PapouchSerialClient, address: int, serial_number: str
+    transport: PapouchSerialClient, address: int, serial_number: str, location: str
 ) -> THT2:
     """Async factory for THT2 device."""
 
-    raw_name = await _get_name(transport, address)
-    name = _parse_name(raw_name)
-
-    raw_location = await _get_location(transport, address)
-    location = _parse_location(raw_location)
-
-    return THT2(transport, name, location, serial_number, address)
+    return THT2(transport, location, serial_number, address)

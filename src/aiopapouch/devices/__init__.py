@@ -1,9 +1,11 @@
 """This file is used as a hub for imports."""
 
+import logging
 from collections.abc import Callable
 from typing import NamedTuple
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
+from ..utils import parse_device_location, parse_device_name, parse_device_serial_number
 from .base import PapouchDevice
 from .papago import async_setup_papago
 from .quido import async_setup_quido
@@ -13,6 +15,8 @@ from .tme import async_setup_tme
 
 SERIAL = "serial"
 NETWORK = "network"
+
+_LOGGER = logging.getLogger()
 
 
 class DeviceHandler(NamedTuple):
@@ -64,22 +68,35 @@ async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice 
     return await handler.setup_func(api_client)
 
 
-async def create_serial_device(api_client: PapouchSerialClient) -> PapouchDevice | None:
+async def create_serial_device(
+    api_client: PapouchSerialClient, address: int
+) -> PapouchDevice | None:
     """Create a proper serial device instance dynamically based on the fetched info.
 
     Returns None if the device is not supported.
+
+    Raises DeviceConnectionError.
     """
 
-    pkt = await api_client.get_info()
-    raw_name = pkt.data
-    result = raw_name.decode("ascii")
-    device_name = result.split(";")[0]
+    pkt_man_data = await api_client.get_man_data(
+        address, f"Unknown device with {address} address"
+    )
+
+    serial_number = parse_device_serial_number(pkt_man_data.data)
+
+    pkt_info = await api_client.get_info(address, serial_number)
+    device_name = parse_device_name(pkt_info.data)
+
+    raw_location = await api_client.get_location(
+        address, f"{device_name} - SN: {serial_number}"
+    )
+    location = parse_device_location(raw_location.data)
 
     handler = _get_device_handler(device_name, SERIAL)
     if not handler:
         return None
 
-    return await handler.setup_func(api_client)
+    return await handler.setup_func(api_client, address, serial_number, location)
 
 
 __all__ = [

@@ -8,6 +8,7 @@ from typing import Any
 
 import aiohttp
 import defusedxml.ElementTree as defused_ET
+
 from pap_spinel import Packet97, SpinelClient, SpinelError
 
 from .exceptions import DeviceAuthError, DeviceConnectionError, DeviceLogicError
@@ -215,6 +216,48 @@ class PapouchSerialClient:
                     f"Device: {context} returned: {err}"
                 ) from err
 
-    async def get_info(self, address: int) -> Packet97:
-        """Get info in Spinel97 packet."""
-        return await self._spinel_client.info(address)
+    async def get_info(self, address: int, context: str) -> Packet97:
+        """Get info in Spinel97 packet. Context is used for error message."""
+        try:
+            return await self._spinel_client.info(address)
+        except SpinelError as err:
+            raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
+
+    async def get_man_data(self, address: int, context: str) -> Packet97:
+        """Get manufacturing data in Spinel97 packet. Context is used for error message."""
+        try:
+            return await self._spinel_client.man_data(address)
+        except SpinelError as err:
+            raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
+
+    async def get_location(self, address: int, context: str) -> Packet97:
+        """Get location in Spinel97 packet. Context is used for error message."""
+        try:
+            return await self._spinel_client.user_data(address)
+        except SpinelError as err:
+            raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
+
+    async def set_address(
+        self, new_address: int, serial_number: str, context: str
+    ) -> None:
+        """Set a new address using serial number. Context is used for error message."""
+
+        request_data = new_address.to_bytes(1, byteorder="big")
+
+        prod_part, ser_part = serial_number.split("/")
+
+        product_number = int(prod_part)
+        serial_number = int(ser_part)
+
+        prod_bytes = product_number.to_bytes(2, byteorder="big")
+        ser_bytes = serial_number.to_bytes(2, byteorder="big")
+
+        request_data += prod_bytes
+        request_data += ser_bytes
+
+        try:
+            await self._spinel_client.request(addr=0xFE, inst=0xEB, data=request_data)
+        except SpinelError as err:
+            raise DeviceConnectionError(
+                f"Failed setting a new address to the device: {context} "
+            ) from err
