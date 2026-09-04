@@ -44,7 +44,7 @@ class THT2(PapouchDevice):
         address: int,
         unit: str = "0",
     ) -> None:
-        """Constructor for THT2 device."""
+        """Constructor for THT2 device. Default unit is C"""
 
         self.api_client = api_client
         self._name = "THT2"
@@ -66,13 +66,16 @@ class THT2(PapouchDevice):
         """Parse raw bytes into dictionary )."""
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
+        type_idx = 1
+
         for i in range(0, len(data), 4):
             chunk = data[i : i + 4]
             if len(chunk) < 4:
                 break
 
-            item_id = str(i + 1)
-            sns_type = str(i + 1)
+            item_id = str(type_idx)
+            sns_type = str(type_idx)
+            type_idx += 1
 
             self.sensors[item_id] = {
                 "id": item_id,
@@ -220,9 +223,26 @@ class THT2(PapouchDevice):
         """Unused in THT2."""
 
 
+async def _get_unit(
+    transport: PapouchSerialClient, address: int, serial_number: str
+) -> str:
+    pkt_unit = await transport.write_command(
+        address, 0x1B, f"THT2 on address {address} - SN: {serial_number}"
+    )
+
+    data = pkt_unit.data
+
+    # first channel value because setting can happen only on every channel
+    chunk = data[1]
+
+    return str(chunk)
+
+
 async def async_setup_tht2(
-    transport: PapouchSerialClient, address: int, serial_number: str, location: str
+    client: PapouchSerialClient, address: int, serial_number: str, location: str
 ) -> THT2:
     """Async factory for THT2 device."""
 
-    return THT2(transport, location, serial_number, address)
+    unit = await _get_unit(client, address, serial_number)
+
+    return THT2(client, location, serial_number, address, unit)

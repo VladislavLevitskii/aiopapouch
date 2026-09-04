@@ -410,10 +410,10 @@ class TMERadioMulti(TMEBase):
             ) from exception
 
 
-async def async_setup_tme(transport: PapouchHTTPClient) -> TMEBase | None:
+async def async_setup_tme(client: PapouchHTTPClient) -> TMEBase | None:
     """Async factory for TME device."""
-    info = await transport.fetch_info()
-    settings = await transport.fetch_settings()
+    info = await client.fetch_info()
+    settings = await client.fetch_settings()
 
     root_info = defused_ET.fromstring(info)
     heartbeat_tag = find_tag(root_info, "heartbeat")
@@ -424,9 +424,9 @@ async def async_setup_tme(transport: PapouchHTTPClient) -> TMEBase | None:
     device_name = heartbeat_tag.attrib.get("device")
 
     if device_name == "TME":
-        return TME(transport, info, settings)
+        return TME(client, info, settings)
     if device_name in {"TME radio", "TME MULTI"}:
-        return TMERadioMulti(transport, info, settings)
+        return TMERadioMulti(client, info, settings)
 
     _LOGGER.error("Unsupported TME: %s", device_name)
     return None

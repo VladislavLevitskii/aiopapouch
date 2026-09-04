@@ -991,10 +991,10 @@ class PapagoETH_METEO(PapagoETH):
                 await self._set_sensor_type(item_id, type_idx)
 
 
-async def async_setup_papago(transport: PapouchHTTPClient) -> PapagoETH | None:
+async def async_setup_papago(client: PapouchHTTPClient) -> PapagoETH | None:
     """Async factory for Papago devices."""
-    settings = await transport.fetch_settings()
-    info = await transport.fetch_info()
+    settings = await client.fetch_settings()
+    info = await client.fetch_info()
 
     root_info = defused_ET.fromstring(info)
     heartbeat_tag = find_tag(root_info, "heartbeat")
@@ -1006,13 +1006,13 @@ async def async_setup_papago(transport: PapouchHTTPClient) -> PapagoETH | None:
     location = heartbeat_tag.attrib.get("location", "NONAME")
 
     if device_name == "Papago 2TH ETH":
-        return PapagoETH_2TH(transport, settings, device_name, location)
+        return PapagoETH_2TH(client, settings, device_name, location)
     if device_name == "Papago 1TH 2DI 1DO ETH":
-        return PapagoETH_1TH_2DI_1DO(transport, settings, device_name, location)
+        return PapagoETH_1TH_2DI_1DO(client, settings, device_name, location)
     if device_name == "Papago 5HDI 1DO ETH":
-        return PapagoETH_5HDI_1DO(transport, settings, device_name, location)
+        return PapagoETH_5HDI_1DO(client, settings, device_name, location)
     if device_name == "Papago METEO ETH":
-        return PapagoETH_METEO(transport, settings, device_name, location)
+        return PapagoETH_METEO(client, settings, device_name, location)
 
     _LOGGER.warning("Unsupported Papago: %s, location: %s", device_name, location)
     return None

@@ -498,8 +498,8 @@ class QuidoRS485(QuidoBase):
     """NotImplemented."""
 
 
-async def async_setup_quido(transport: PapouchHTTPClient) -> QuidoBase | None:
+async def async_setup_quido(client: PapouchHTTPClient) -> QuidoBase | None:
     """Async factory for Quido devices."""
-    settings = await transport.fetch_settings()
-    info = await transport.fetch_info()
-    return QuidoETH(transport, settings, info)
+    settings = await client.fetch_settings()
+    info = await client.fetch_info()
+    return QuidoETH(client, settings, info)
