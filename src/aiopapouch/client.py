@@ -240,7 +240,7 @@ class PapouchSerialClient:
     async def set_address(
         self, new_address: int, serial_number: str, context: str
     ) -> None:
-        """Set a new address using serial number. Context is used for error message."""
+        """Set a new address using serial number. Serial number should have format 0123/45678. Context is used for error message."""
 
         request_data = new_address.to_bytes(1, byteorder="big")
 
