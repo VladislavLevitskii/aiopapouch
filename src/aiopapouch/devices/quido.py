@@ -8,6 +8,8 @@ from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
+from pap_spinel import ACK_FAILURE
+
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..exceptions import DeviceLogicError, DeviceParseError
 from .base import HTTPMixin, PapouchDevice, find_tag
@@ -569,10 +571,14 @@ class QuidoRS485(QuidoBase):
 
         return result
 
-    async def _get_temp(self) -> float:
+    async def _get_temp(self) -> float | None:
         result_pkt = await self.api_client.write_command(
             self.address, 0x51, self.context, b"\x01"
         )
+
+        # for some reason if there is no temp sensor it returns ACK 5
+        if result_pkt.ack_code() == ACK_FAILURE:
+            return None
 
         data_part = result_pkt.data[1:]
 
