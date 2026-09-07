@@ -203,13 +203,18 @@ class PapouchSerialClient:
         await self._spinel_client.close()
 
     async def write_command(
-        self, addr: int, inst: int, context: str, data: bytes = b""
+        self,
+        addr: int,
+        inst: int,
+        context: str,
+        data: bytes = b"",
+        timeout: float = 2.0,
     ) -> Packet97:
         """Write command. Return Spinel97 Packet"""
         async with self.lock:
             try:
                 return await self._spinel_client.request(
-                    addr=addr, inst=inst, data=data
+                    addr=addr, inst=inst, data=data, timeout=timeout
                 )
             except SpinelError as err:
                 raise DeviceConnectionError(
