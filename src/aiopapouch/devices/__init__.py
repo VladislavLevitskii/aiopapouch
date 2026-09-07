@@ -7,11 +7,11 @@ from typing import NamedTuple
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..utils import parse_device_location, parse_device_name, parse_device_serial_number
 from .base import PapouchDevice
-from .papago import async_setup_papago
-from .quido import async_setup_quido
-from .th2e import async_setup_th2e
-from .tht2 import async_setup_tht2
-from .tme import async_setup_tme
+from .papago import async_setup_network_papago
+from .quido import async_setup_network_quido, async_setup_serial_quido
+from .th2e import async_setup_network_th2e
+from .tht2 import async_setup_serial_tht2
+from .tme import async_setup_network_tme
 
 SERIAL = "serial"
 NETWORK = "network"
@@ -20,18 +20,28 @@ _LOGGER = logging.getLogger()
 
 
 class DeviceHandler(NamedTuple):
-    """Represents device handler with async setup and supported types."""
+    """Represents device handler containing a dictionary of setup functions keyed by connection type."""
 
-    setup_func: Callable
-    supported_types: set[str]
+    setup_funcs: dict[str, Callable]
 
 
 DEVICE_SETUP_HANDLERS = {
-    "Quido": DeviceHandler(async_setup_quido, {NETWORK}),
-    "TH2E": DeviceHandler(async_setup_th2e, {NETWORK}),
-    "TME": DeviceHandler(async_setup_tme, {NETWORK}),
-    "Papago": DeviceHandler(async_setup_papago, {NETWORK}),
-    "THT2": DeviceHandler(async_setup_tht2, {SERIAL}),
+    "Quido": DeviceHandler({
+        NETWORK: async_setup_network_quido,
+        SERIAL: async_setup_serial_quido,
+    }),
+    "TH2E": DeviceHandler({
+        NETWORK: async_setup_network_th2e,
+    }),
+    "TME": DeviceHandler({
+        NETWORK: async_setup_network_tme,
+    }),
+    "Papago": DeviceHandler({
+        NETWORK: async_setup_network_papago,
+    }),
+    "THT2": DeviceHandler({
+        SERIAL: async_setup_serial_tht2,
+    }),
 }
 
 
@@ -42,7 +52,7 @@ def _get_device_handler(
         return None
 
     for prefix, handler in DEVICE_SETUP_HANDLERS.items():
-        if prefix in device_name and device_type in handler.supported_types:
+        if prefix in device_name and device_type in handler.setup_funcs:
             return handler
 
     return None
@@ -65,7 +75,8 @@ async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice 
     if not handler:
         return None
 
-    return await handler.setup_func(api_client)
+    setup_func = handler.setup_funcs[NETWORK]
+    return await setup_func(api_client)
 
 
 async def create_serial_device(
@@ -96,7 +107,8 @@ async def create_serial_device(
     if not handler:
         return None
 
-    return await handler.setup_func(api_client, address, serial_number, location)
+    setup_func = handler.setup_funcs[SERIAL]
+    return await setup_func(api_client, address, serial_number, device_name, location)
 
 
 __all__ = [

@@ -39,6 +39,7 @@ class THT2(PapouchDevice):
     def __init__(
         self,
         api_client: PapouchSerialClient,
+        device_name: str,
         location: str,
         serial_number: str,
         address: int,
@@ -47,7 +48,7 @@ class THT2(PapouchDevice):
         """Constructor for THT2 device. Default unit is C"""
 
         self.api_client = api_client
-        self._name = "THT2"
+        self._name = device_name
         self._location = location
         self._serial_number = serial_number
         self._address = address
@@ -238,11 +239,15 @@ async def _get_unit(
     return str(chunk)
 
 
-async def async_setup_tht2(
-    client: PapouchSerialClient, address: int, serial_number: str, location: str
+async def async_setup_serial_tht2(
+    client: PapouchSerialClient,
+    address: int,
+    serial_number: str,
+    device_name: str,
+    location: str,
 ) -> THT2:
     """Async factory for THT2 device."""
 
     unit = await _get_unit(client, address, serial_number)
 
-    return THT2(client, location, serial_number, address, unit)
+    return THT2(client, device_name, location, serial_number, address, unit)

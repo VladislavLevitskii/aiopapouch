@@ -991,7 +991,7 @@ class PapagoETH_METEO(PapagoETH):
                 await self._set_sensor_type(item_id, type_idx)
 
 
-async def async_setup_papago(client: PapouchHTTPClient) -> PapagoETH | None:
+async def async_setup_network_papago(client: PapouchHTTPClient) -> PapagoETH | None:
     """Async factory for Papago devices."""
     settings = await client.fetch_settings()
     info = await client.fetch_info()

@@ -410,7 +410,7 @@ class TMERadioMulti(TMEBase):
             ) from exception
 
 
-async def async_setup_tme(client: PapouchHTTPClient) -> TMEBase | None:
+async def async_setup_network_tme(client: PapouchHTTPClient) -> TMEBase | None:
     """Async factory for TME device."""
     info = await client.fetch_info()
     settings = await client.fetch_settings()

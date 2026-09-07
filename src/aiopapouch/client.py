@@ -208,13 +208,16 @@ class PapouchSerialClient:
         """Write command. Return Spinel97 Packet"""
         async with self.lock:
             try:
-                return await self._spinel_client.request(
+                result = await self._spinel_client.request(
                     addr=addr, inst=inst, data=data
                 )
             except SpinelError as err:
                 raise DeviceConnectionError(
                     f"Device: {context} returned: {err}"
                 ) from err
+
+            if result.is_ack() and result.ack_code() != 0:
+                raise DeviceLogicError(context)
 
     async def get_info(self, address: int, context: str) -> Packet97:
         """Get info in Spinel97 packet. Context is used for error message."""

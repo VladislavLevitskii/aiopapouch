@@ -400,7 +400,7 @@ class TH2E(PapouchDevice, HTTPMixin):
         pass
 
 
-async def async_setup_th2e(client: PapouchHTTPClient) -> TH2E | None:
+async def async_setup_network_th2e(client: PapouchHTTPClient) -> TH2E | None:
     """Async factory for TH2E device."""
     settings = await client.fetch_settings()
     info = await client.fetch_info()

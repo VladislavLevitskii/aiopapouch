@@ -21,7 +21,7 @@ pip install aiopapouch
 Currently, the library supports the following Ethernet devices communicating via WEB mode:
 
 * Quido ETH
-* Papago 
+* Papago
     * Meteo
     * 2TH
     * 5HDI DO
@@ -32,6 +32,7 @@ Currently, the library supports the following Ethernet devices communicating via
 
 and these are devices that use serial communiction (RS485):
 
+* Quido RS485
 * THT2
 
 ## Devices
@@ -82,7 +83,7 @@ async def main():
     async with aiohttp.ClientSession() as session:
         # Initialize the API transport client
         client = PapouchHTTPClient("192.168.1.100", session)
-        
+
         # Option A: Automatic detection via factory pattern (Recommended)
         try:
             device = await create_network_device(client)
@@ -129,8 +130,6 @@ The client can also resolve some data from the device without needing to know it
 `get_info`, `get_man_data` and `get_location`
 
 All you need is an address, but if you bought the device right now and you don't know the address, you can set it up using `set_address` method. All you need is a serial number.
-
-> **Warning**: Make sure that during setting the address there is only 1 device connected.
 
 Of course the library doesn't provide all of the possible tools that the particular device can have, so you can communicate with it using `write_command` method that returns `SpinelPacket` (97 format). Then you can access its payload (bytes) via `data` property.
 
@@ -204,7 +203,7 @@ async def main():
         # Initialize the API transport client
         client = PapouchHTTPClient("192.168.1.100", session)
         device = await create_device(client)
-        
+
         if device is None:
             return
 
