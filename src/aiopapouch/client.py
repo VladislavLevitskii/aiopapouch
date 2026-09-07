@@ -219,6 +219,8 @@ class PapouchSerialClient:
             if result.is_ack() and result.ack_code() != 0:
                 raise DeviceLogicError(context)
 
+            return result
+
     async def get_info(self, address: int, context: str) -> Packet97:
         """Get info in Spinel97 packet. Context is used for error message."""
         try:
