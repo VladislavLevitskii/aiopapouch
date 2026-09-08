@@ -245,6 +245,11 @@ class QuidoETH(QuidoBase, HTTPMixin):
         self._parse_initial_settings()
 
     @override
+    @property
+    def context(self) -> str:
+        return f"{self.name} ({self.location}) - {self.api_client.ip_address}"
+
+    @override
     async def parse_fresh_data(self, xml_data: str) -> dict:
         """Defines parser method for QuidoETH."""
         root = defused_ET.fromstring(xml_data)
@@ -293,19 +298,30 @@ class QuidoETH(QuidoBase, HTTPMixin):
                     item_id=item_id,
                     time=str(time_units),
                 )
+            case _:
+                raise DeviceLogicError(
+                    f"Unknown number category '{category}' requested for device: {self.context}"
+                )
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Return selected option by its id."""
         if category == "counter_mode":
             return self._get_counter_mode(item_id)
-        return None
+        else:
+            raise DeviceLogicError(
+                f"Unknown select category '{category}' requested for device: {self.context}"
+            )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Set selected option by its id."""
         if category == "counter_mode":
             await self._set_counter_mode(item_id, option)
+        else:
+            raise DeviceLogicError(
+                f"Unknown select category '{category}' requested for device: {self.context}"
+            )
 
     @override
     async def switch_to_web_mode(self) -> None:
@@ -313,7 +329,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
         box = self.settings_root.find(".//set[@box='1']")
         if box is None:
             raise DeviceParseError(
-                f"Box for network mode is not found, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Box for network mode is not found, in the device: {self.context}"
             )
 
         def pad_ip(ip_str: str) -> str:
@@ -379,14 +395,14 @@ class QuidoETH(QuidoBase, HTTPMixin):
         item = root.find(f".//set[@box='10']/item[@id='{item_id}']")
         if item is None:
             raise DeviceParseError(
-                f"Item {item_id} not found in settings in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Item {item_id} not found in settings in the device: {self.context}"
             )
 
         try:
             mode_index = self.COUNTER_MODES.index(mode)
         except ValueError as err:
             raise DeviceLogicError(
-                f"Invalid counter mode: {mode}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid counter mode: {mode}, in the device: {self.context}"
             ) from err
 
         on_val = item.get("on", "0")
@@ -454,7 +470,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
                         ]
                 except ValueError as err:
                     raise DeviceLogicError(
-                        f"Invalid mode index for item {item_id}: {mode_index_str}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                        f"Invalid mode index for item {item_id}: {mode_index_str}, in the device: {self.context}"
                     ) from err
 
             box_elem = self.settings_root.find(".//set[@box='8']")
@@ -470,7 +486,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
         except (defused_ET.ParseError, ValueError, TypeError) as err:
             raise DeviceParseError(
-                f"Failed to parse initial settings: {err}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Failed to parse initial settings: {err}, in the device: {self.context}"
             ) from err
 
     @override
@@ -497,7 +513,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
             return str(box.attrib.get("mac", ""))
 
         raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+            f"The device doesn't have box 12 with MAC address, device: {self.context}"
         )
 
     @override
@@ -527,21 +543,25 @@ class QuidoRS485(QuidoBase):
         super().__init__()
         self.api_client = api_client
         self.conf = configuration
-        self.context = f"{self.conf.name} - SN: {self.conf.identifier}"
 
         self.address = address
 
     @override
-    def get_location(self):
+    def get_location(self) -> str:
         return self.conf.location
 
     @override
-    def get_name(self):
+    def get_name(self) -> str:
         return self.conf.name
 
     @override
-    def get_identifier(self):
+    def get_identifier(self) -> str:
         return self.conf.identifier
+
+    @override
+    @property
+    def context(self) -> str:
+        return f"{self.conf.name} - SN: {self.conf.identifier}"
 
     async def _get_state_coils(self) -> dict:
         result_pkt = await self.api_client.write_command(
@@ -643,12 +663,18 @@ class QuidoRS485(QuidoBase):
         """Return selected option by its id."""
         if category == "counter_mode":
             return self._get_counter_mode(item_id)
-        return None
+        raise DeviceLogicError(
+            f"Unknown select category '{category}' requested for device: {self.context}"
+        )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         if category == "counter_mode":
             await self._set_counter_mode(item_id, option)
+        else:
+            raise DeviceLogicError(
+                f"Unknown select category '{category}' requested for device: {self.context}"
+            )
 
     @override
     async def _decrease_value_counter(self, item_id: str, value: int) -> None:
@@ -686,6 +712,11 @@ class QuidoRS485(QuidoBase):
 
                 await self.api_client.write_command(
                     self.address, 0x23, self.context, payload
+                )
+
+            case _:
+                raise DeviceLogicError(
+                    f"Unknown number category '{category}' requested for device: {self.context}"
                 )
 
     @override
@@ -763,6 +794,8 @@ class QuidoRS485(QuidoBase):
         conf: QuidoConfiguration,
         context: str,
     ) -> None:
+        """Assignes proper mode of the counters in the configuration."""
+
         result_pkt = await api_client.write_command(address, 0x6B, context, b"\x00")
 
         result_data_bytes = result_pkt.data

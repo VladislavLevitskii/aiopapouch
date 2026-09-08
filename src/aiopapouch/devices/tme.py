@@ -42,6 +42,11 @@ class TMEBase(PapouchDevice, ABC):
         """Return device's identifier."""
         return self._mac_address
 
+    @override
+    @property
+    def context(self) -> str:
+        return f"{self.name} ({self.location}) - {self.api_client.ip_address}"
+
     def __init__(self, api_client: PapouchHTTPClient, info: str, settings: str) -> None:
         """Constructor for TME device."""
 
@@ -116,7 +121,7 @@ class TMEBase(PapouchDevice, ABC):
 
         raise DeviceParseError(
             f"The device doesn't have a MAC address in settings.xml nor fresh.xml, "
-            f"device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+            f"device: {self.context}"
         )
 
     @override
@@ -265,7 +270,7 @@ class TME(TMEBase):
                 parsed_data["sensor"][semantic_key] = float(value) / 10.0
             except ValueError as err:
                 raise DeviceParseError(
-                    f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error while parsing value: '{value}' from sensor"
+                    f"{self.context} returned an error while parsing value: '{value}' from sensor"
                 ) from err
 
     @override
@@ -354,7 +359,7 @@ class TMERadioMulti(TMEBase):
         box = self.settings_root.find(".//set[@box='1']")
         if box is None:
             raise DeviceParseError(
-                f"Box for network mode is not found, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Box for network mode is not found, in the device: {self.context}"
             )
 
         def pad_ip(ip_str: str) -> str:
@@ -394,19 +399,19 @@ class TMERadioMulti(TMEBase):
 
             if result_tag is None:
                 raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                    f"Response doesn't have result tag!, in the device: {self.context}"
                 )
 
             if result_tag.attrib.get("status") != expected_status:
                 raise DeviceResponseError(
-                    f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error while {action_msg}, whole response: {response_text}"
+                    f"{self.context} returned an error while {action_msg}, whole response: {response_text}"
                 )
 
             return int(result_tag.attrib.get("typesens", "0"))
 
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid XML response from device: {exception}, in the device: {self.context}"
             ) from exception
 
 

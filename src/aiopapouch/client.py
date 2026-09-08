@@ -251,11 +251,11 @@ class PapouchSerialClient:
 
         prod_part, ser_part = serial_number.split("/")
 
-        product_number = int(prod_part)
-        serial_number = int(ser_part)
+        product_number_part = int(prod_part)
+        serial_number_part = int(ser_part)
 
-        prod_bytes = product_number.to_bytes(2, byteorder="big")
-        ser_bytes = serial_number.to_bytes(2, byteorder="big")
+        prod_bytes = product_number_part.to_bytes(2, byteorder="big")
+        ser_bytes = serial_number_part.to_bytes(2, byteorder="big")
 
         request_data += prod_bytes
         request_data += ser_bytes

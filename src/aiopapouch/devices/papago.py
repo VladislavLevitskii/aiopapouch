@@ -8,7 +8,11 @@ from typing import Any, cast, override
 import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
-from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
+from ..exceptions import (
+    DeviceLogicError,
+    DeviceParseError,
+    DeviceResponseError,
+)
 from .base import HTTPMixin, PapouchDevice, find_tag
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,6 +79,11 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     def identifier(self) -> str:
         """Return device's identifier."""
         return self._mac_address
+
+    @override
+    @property
+    def context(self) -> str:
+        return f"{self.name} ({self.location}) - {self.api_client.ip_address}"
 
     def __init__(
         self,
@@ -240,7 +249,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             return str(box.attrib.get("mac", ""))
 
         raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+            f"The device doesn't have box 12 with MAC address, device: {self.context}"
         )
 
     @override
@@ -478,7 +487,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             self.settings_root = defused_ET.fromstring(settings)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid settings XML: {exception}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid settings XML: {exception}, in the device: {self.context}"
             ) from exception
 
         self._parse_initial_settings()
@@ -487,7 +496,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     async def execute_button_command(self, cmd_type: str) -> None:
         if "set_sensor" not in cmd_type:
             raise DeviceLogicError(
-                f"Unsupported command: {cmd_type}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Unsupported command: {cmd_type}, in the device: {self.context}"
             )
 
         sensor_id = cmd_type.split("_")[2]
@@ -513,7 +522,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         result_tag = find_tag(root, "result")
         if result_tag is not None and result_tag.attrib.get("status") not in ("1", "4"):
             raise DeviceResponseError(
-                f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error while auto-detecting sensor, whole response: {response}"
+                f"{self.context} returned an error while auto-detecting sensor, whole response: {response}"
             )
 
         for element in root.iter("set"):
@@ -550,7 +559,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         if target_box is None:
             raise DeviceParseError(
-                f"Box {box_num} not found in settings, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Box {box_num} not found in settings, in the device: {self.context}"
             )
 
         safe_defaults = {
@@ -600,17 +609,17 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
             if result_tag is None:
                 raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                    f"Response doesn't have result tag!, in the device: {self.context}"
                 )
 
             if result_tag.attrib.get("status") != expected_status:
                 raise DeviceResponseError(
-                    f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error while {action_msg}, whole response: {response_text}"
+                    f"{self.context} returned an error while {action_msg}, whole response: {response_text}"
                 )
 
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid XML response from device: {exception}, in the device: {self.context}"
             ) from exception
 
     async def _save_setting(self, xml_payload: str) -> None:
@@ -654,15 +663,14 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             real_input_id = str(int(item_id) - self.INPUT_ID_INCREMENT)
         except ValueError as err:
             raise DeviceLogicError(
-                f"Invalid item_id format for input: {item_id}"
-                f"device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid item_id format for input: {item_id}device: {self.context}"
             ) from err
 
         input_item = self.inputs.get(real_input_id)
         if not input_item:
             raise DeviceLogicError(
                 f"Input with ID {real_input_id} not found in parsed data, "
-                f"device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"device: {self.context}"
             )
 
         box_num = input_item.box_num
@@ -704,6 +712,10 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 await self._send_command(
                     "n", item_id=_item_id, value=str(formatted_value)
                 )
+            case _:
+                raise DeviceLogicError(
+                    f"Unknown number category '{category}' requested for device: {self.context}"
+                )
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
@@ -713,6 +725,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 type_idx = int(sns_type)
                 if 0 <= type_idx < len(self.SENSOR_TYPES):
                     return self.SENSOR_TYPES[type_idx]
+            return None
 
         if category == "counter_mode":
             real_input_id = str(int(item_id) - self.INPUT_ID_INCREMENT)
@@ -721,8 +734,11 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 mode_idx = int(input_item.type_cnt)
                 if 0 <= mode_idx < len(self.COUNTER_MODES):
                     return self.COUNTER_MODES[mode_idx]
+            return None
 
-        return None
+        raise DeviceLogicError(
+            f"Unknown select category '{category}' requested for device: {self.context}"
+        )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
@@ -733,6 +749,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 return
 
             await self._set_sensor_type(item_id, type_idx)
+            return
 
         if category == "counter_mode":
             try:
@@ -741,6 +758,11 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 return
 
             await self._set_input_type(item_id, type_idx)
+            return
+
+        raise DeviceLogicError(
+            f"Unknown select category '{category}' requested for device: {self.context}"
+        )
 
     @override
     async def switch_to_web_mode(self) -> None:

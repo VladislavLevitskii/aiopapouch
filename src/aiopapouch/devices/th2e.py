@@ -40,6 +40,11 @@ class TH2E(PapouchDevice, HTTPMixin):
         """Return device's identifier."""
         return self._mac_address
 
+    @override
+    @property
+    def context(self) -> str:
+        return f"{self.name} ({self.location}) - {self.api_client.ip_address}"
+
     def __init__(self, api_client: PapouchHTTPClient, settings: str, info: str) -> None:
         """Constructor for TH2E device."""
 
@@ -71,7 +76,7 @@ class TH2E(PapouchDevice, HTTPMixin):
 
         if status_tag is None:
             raise DeviceParseError(
-                f"The device doesn't have box status tag in fresh.xml, device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"The device doesn't have box status tag in fresh.xml, device: {self.context}"
             )
 
         self.sensor_type = int(status_tag.attrib.get("typesens", "0"))
@@ -132,7 +137,7 @@ class TH2E(PapouchDevice, HTTPMixin):
             return str(box.attrib.get("mac", ""))
 
         raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+            f"The device doesn't have box 12 with MAC address, device: {self.context}"
         )
 
     @override
@@ -214,7 +219,7 @@ class TH2E(PapouchDevice, HTTPMixin):
     async def execute_button_command(self, cmd_type: str) -> None:
         if cmd_type != "set_sensor":
             raise DeviceLogicError(
-                f"Unsupported command: {cmd_type}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Unsupported command: {cmd_type}, in the device: {self.context}"
             )
 
         self.sensor_type = await self._get_sensor_type()
@@ -239,7 +244,7 @@ class TH2E(PapouchDevice, HTTPMixin):
             settings_root = defused_ET.fromstring(settings)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid settings XML: {exception}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid settings XML: {exception}, in the device: {self.context}"
             ) from exception
 
         def format_str_val(val: str) -> str:
@@ -316,19 +321,19 @@ class TH2E(PapouchDevice, HTTPMixin):
 
             if result_tag is None:
                 raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                    f"Response doesn't have result tag!, in the device: {self.context}"
                 )
 
             if result_tag.attrib.get("status") != expected_status:
                 raise DeviceResponseError(
-                    f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error while {action_msg}, whole response: {response_text}"
+                    f"{self.context} returned an error while {action_msg}, whole response: {response_text}"
                 )
 
             return int(result_tag.attrib.get("typesens", "0"))
 
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Invalid XML response from device: {exception}, in the device: {self.context}"
             ) from exception
 
     @override
@@ -350,7 +355,10 @@ class TH2E(PapouchDevice, HTTPMixin):
     def get_select_option(self, category: str, item_id: str) -> str | None:
         if category == "sensor_type":
             return self.SENSOR_TYPES[self.sensor_type]
-        return None
+        else:
+            raise DeviceLogicError(
+                f"Unknown select category '{category}' requested for device: {self.context}"
+            )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
@@ -364,7 +372,7 @@ class TH2E(PapouchDevice, HTTPMixin):
         box = self.settings_root.find(".//set[@box='1']")
         if box is None:
             raise DeviceParseError(
-                f"Box for network mode is not found, in the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Box for network mode is not found, in the device: {self.context}"
             )
 
         def pad_ip(ip_str: str) -> str:

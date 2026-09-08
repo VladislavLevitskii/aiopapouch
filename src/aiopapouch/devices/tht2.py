@@ -36,6 +36,11 @@ class THT2(PapouchDevice):
         """Return device's identifier."""
         return self._serial_number
 
+    @override
+    @property
+    def context(self) -> str:
+        return f"{self.name} - SN: {self.identifier}"
+
     def __init__(
         self,
         api_client: PapouchSerialClient,

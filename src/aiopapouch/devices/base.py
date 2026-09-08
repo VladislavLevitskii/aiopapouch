@@ -31,6 +31,10 @@ class HttpMixinHost(Protocol):
     def location(self) -> str:
         """Get the location of the device. MixinHost."""
 
+    @property
+    def context(self) -> str:
+        """Required context property."""
+
     api_client: PapouchHTTPClient
 
 
@@ -56,9 +60,7 @@ class HTTPMixin(HttpMixinHost):
         }
         params = {key: value for key, value in raw_params.items() if value is not None}
 
-        response = await self.api_client.read_command(
-            params, f"{self.name} ({self.location})"
-        )
+        response = await self.api_client.read_command(params, self.context)
 
         self._check_response(response, str(params))
 
@@ -73,13 +75,12 @@ class HTTPMixin(HttpMixinHost):
 
             if status == ERROR_STATUS:
                 raise DeviceResponseError(
-                    f"{self.name} ({self.location}) - {self.api_client.ip_address} returned an error, "
-                    f"whole response: {response_text} and whole request text: {request_text}, "
-                    f"whole request text: {request_text}"
+                    f"{self.context} returned an error, "
+                    f"whole response: {response_text} and whole request text: {request_text}"
                 )
         else:
             raise DeviceResponseError(
-                f"Response doesn't have the result tag! In the device: {self.name} ({self.location}) - {self.api_client.ip_address}"
+                f"Response doesn't have the result tag! In the device: {self.context}"
             )
 
 
@@ -183,6 +184,11 @@ class PapouchDevice(ABC):
     @abstractmethod
     def identifier(self) -> str:
         """Return device's identifier."""
+
+    @property
+    @abstractmethod
+    def context(self) -> str:
+        """Return context of the device (its name, location and identifier, possibly other information)"""
 
     @abstractmethod
     async def parse_fresh_data(self, xml_data: str) -> dict:
