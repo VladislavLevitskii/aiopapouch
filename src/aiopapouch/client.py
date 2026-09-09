@@ -64,6 +64,8 @@ class PapouchHTTPClient:
         return await self._fetch(SETTINGS_URL)
 
     async def get_device_info(self) -> tuple[str | None, str | None]:
+        """Return (device_name, device_location) if some of that is unavailable returns None."""
+
         info = await self.fetch_info()
 
         try:
@@ -86,6 +88,7 @@ class PapouchHTTPClient:
         return (device_name, device_location)
 
     async def get_device_mac(self) -> str:
+        """Return MAC of the device."""
         settings = await self.fetch_settings()
         root = defused_ET.fromstring(settings)
         box = root.find(".//set[@box='12']")
@@ -95,6 +98,21 @@ class PapouchHTTPClient:
 
         raise DeviceLogicError(
             f"Device: {self.ip_address} doesn't have a box 12 with MAC address"
+        )
+
+    async def get_device_tcp_port(self) -> int:
+        """Return TCP port of the device."""
+        settings = await self.fetch_settings()
+        root = defused_ET.fromstring(settings)
+        box = root.find(".//set[@box='1']")
+
+        if box is not None:
+            tcp_port = box.attrib.get("lport")
+            if tcp_port:
+                return int(tcp_port)
+
+        raise DeviceLogicError(
+            f"Device: {self.ip_address} doesn't have a box 1 with TCP port"
         )
 
     async def _send_request(

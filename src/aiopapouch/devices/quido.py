@@ -244,21 +244,23 @@ class QuidoETH(QuidoBase, HTTPMixin):
                     semantic_key = self._generate_semantic_key(
                         self.TEMPERATURE_SNS_TYPE, item_id
                     )
-                    val_str = element.attrib.get("val", "0")
-                    if val_str == "":
-                        val_str = "0"
-                    parsed_data["temperature"][semantic_key] = float(val_str)
+                    val_str = element.attrib.get("val")
+                    parsed_data["temperature"][semantic_key] = (
+                        float(val_str) if val_str else None
+                    )
 
                 case "dout":  # codespell:ignore dout
-                    val_str = element.attrib.get("val", "0")
-                    parsed_data["switch"][item_id] = int(val_str)
+                    val_str = element.attrib.get("val")
+                    parsed_data["switch"][item_id] = int(val_str) if val_str else None
 
                 case "din":
-                    parsed_data["input"][item_id] = int(element.attrib.get("val", "0"))
+                    val_str = element.attrib.get("val")
+                    parsed_data["input"][item_id] = int(val_str) if val_str else None
+
                     semantic_key = self._generate_semantic_key(self.PULSES, item_id)
-                    parsed_data["counter"][semantic_key] = int(
-                        element.attrib.get("cnt", "0")
-                    )
+
+                    val_str = element.attrib.get("cnt")
+                    parsed_data["counter"][item_id] = int(val_str) if val_str else None
 
         return parsed_data
 
