@@ -1,12 +1,22 @@
 """This file contains definition of the THT2 device."""
 
 import logging
+from dataclasses import dataclass, field
 from typing import Any, override
 
 from ..client import PapouchSerialClient
-from .base import PapouchDevice
+from .base import PapouchConfiguration, PapouchDevice
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class THT2Configuration(PapouchConfiguration):
+    """Configuration for THT2."""
+
+    address: int = 0
+    unit: str = "0"
+    sensors: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 class THT2(PapouchDevice):
@@ -14,32 +24,8 @@ class THT2(PapouchDevice):
 
     @override
     @property
-    def name(self) -> str:
-        """Return device's name."""
-        return self._name
-
-    @override
-    @property
-    def location(self) -> str:
-        """Return device's location."""
-        return self._location
-
-    @override
-    @property
-    def manufacturer(self) -> str:
-        """Return device's manufacturer."""
-        return "Papouch s.r.o."
-
-    @override
-    @property
-    def identifier(self) -> str:
-        """Return device's identifier."""
-        return self._serial_number
-
-    @override
-    @property
-    def context(self) -> str:
-        return f"{self.name} - SN: {self.identifier}"
+    def conf(self) -> THT2Configuration:
+        return self._conf
 
     def __init__(
         self,
@@ -53,18 +39,20 @@ class THT2(PapouchDevice):
         """Constructor for THT2 device. Default unit is C"""
 
         self.api_client = api_client
-        self._name = device_name
-        self._location = location
-        self._serial_number = serial_number
-        self._address = address
-        self._unit = unit
 
-        self.sensors: dict[str, dict[str, str]] = {}
+        self._conf = THT2Configuration(
+            name=device_name,
+            location=location,
+            identifier=serial_number,
+            context=f"{device_name} - SN: {serial_number}",
+            address=address,
+            unit=unit,
+        )
 
     async def _update_data(self) -> bytes:
         """Fetch raw bytes of the fresh data from the serial device."""
         packet = await self.api_client.write_command(
-            self._address, 0x51, f"{self.name} - {self.location}", b"\x00"
+            self.conf.address, 0x51, f"{self.name} - {self.location}", b"\x00"
         )
         return packet.data
 
@@ -83,10 +71,10 @@ class THT2(PapouchDevice):
             sns_type = str(type_idx)
             type_idx += 1
 
-            self.sensors[item_id] = {
+            self.conf.sensors[item_id] = {
                 "id": item_id,
                 "type": sns_type,
-                "unit": self._unit
+                "unit": self.conf.unit
                 if item_id != "2"
                 else "0",  # humidity ("2") has always 0
             }
@@ -113,21 +101,6 @@ class THT2(PapouchDevice):
         return self._parse_raw_data(raw_bytes)
 
     @override
-    def get_location(self) -> str:
-        """Return the location of the device."""
-        return self._location
-
-    @override
-    def get_name(self) -> str:
-        """Return the name of the device."""
-        return self._name
-
-    @override
-    def get_identifier(self) -> str:
-        """Return the identifier of the device."""
-        return self._serial_number
-
-    @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
         """Unused in THT2."""
         return []
@@ -146,7 +119,7 @@ class THT2(PapouchDevice):
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         sensors = []
 
-        for sns in self.sensors.values():
+        for sns in self.conf.sensors.values():
             item_id = sns["id"]
             sns_type = sns["type"]
             unit_code = sns["unit"]

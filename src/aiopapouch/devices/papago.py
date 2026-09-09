@@ -1,9 +1,10 @@
 """This file contains definition of the Papago device family."""
 
 import logging
+import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, cast, override
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
@@ -13,7 +14,7 @@ from ..exceptions import (
     DeviceParseError,
     DeviceResponseError,
 )
-from .base import HTTPMixin, PapouchDevice, find_tag
+from .base import HTTPMixin, PapouchConfiguration, PapouchDevice, find_tag
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +39,18 @@ class OutputSettings:
     name: str
 
 
+@dataclass
+class PapagoConfiguration(PapouchConfiguration):
+    """Configuration for Papago devices."""
+
+    size_counter_bits: int = 32
+
+    inputs: dict[str, InputSettings] = field(default_factory=dict)
+    outputs: dict[str, OutputSettings] = field(default_factory=dict)
+    sensors: dict[str, dict[str, Any]] = field(default_factory=dict)
+    sensors_types: dict[str, str] = field(default_factory=dict)
+
+
 class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     """Represents Papago device family.
 
@@ -51,39 +64,16 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
     SAVE_ENDPOINT = "savesettings.xml"
 
-    SENSOR_SETTINGS_KEYS: list[tuple[str, str]]
+    SENSOR_SETTINGS_KEYS: ClassVar[list[tuple[str, str]]]
 
     # This constant is used for distinguishing IDs for select entries
     INPUT_ID_INCREMENT = 1000
 
-    @override
     @property
-    def name(self) -> str:
-        """Return device's name."""
-        return self._name
-
     @override
-    @property
-    def location(self) -> str:
-        """Return device's location."""
-        return self._location
-
-    @override
-    @property
-    def manufacturer(self) -> str:
-        """Return device's manufacturer."""
-        return "Papouch s.r.o."
-
-    @override
-    @property
-    def identifier(self) -> str:
-        """Return device's identifier."""
-        return self._mac_address
-
-    @override
-    @property
-    def context(self) -> str:
-        return f"{self.name} ({self.location}) - {self.api_client.ip_address}"
+    def conf(self) -> PapagoConfiguration:
+        """Return the device configuration."""
+        return self._conf
 
     def __init__(
         self,
@@ -97,20 +87,17 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         super().__init__()
 
         self.api_client = cast(PapouchHTTPClient, api_client)
-
         self.settings_root = defused_ET.fromstring(settings)
 
-        self._name = device_name
-        self._location = location
-        self._mac_address = self.get_identifier()
+        _mac_address = self._get_identifier()
 
-        self.size_counter_bits = 32
-
-        self.sensors: dict[str, dict[str, Any]] = {}
-        self.sensors_types: dict[str, str] = {}
-
-        self.inputs: dict[str, InputSettings] = {}
-        self.outputs: dict[str, OutputSettings] = {}
+        context_str = f"{device_name} ({location}) - {self.api_client.ip_address}"
+        self._conf = PapagoConfiguration(
+            identifier=_mac_address,
+            name=device_name,
+            location=location,
+            context=context_str,
+        )
 
         self._parse_initial_settings()
 
@@ -141,7 +128,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         return parsed_data
 
     async def _parse_sns_element(
-        self, element: defused_ET.Element, parsed_data: dict[str, dict[str, Any]]
+        self, element: ET.Element, parsed_data: dict[str, dict[str, Any]]
     ) -> None:
         """Parse XML element containing sensor data (temperature, humidity...)."""
         base_item_id = element.attrib.get("id")
@@ -150,8 +137,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         if not base_item_id:
             return
 
-        if base_item_id not in self.sensors:
-            self.sensors[base_item_id] = {
+        if base_item_id not in self.conf.sensors:
+            self.conf.sensors[base_item_id] = {
                 "name": base_name,
                 "sub_sensors": dict[str, str](),
             }
@@ -168,7 +155,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             unit_code = element.attrib.get(f"unit{suffix}", "0")
             status = element.attrib.get(f"status{suffix}", "0")
 
-            self.sensors[base_item_id]["sub_sensors"][item_id] = {
+            self.conf.sensors[base_item_id]["sub_sensors"][item_id] = {
                 "type": sns_type,
                 "unit": unit_code,
             }
@@ -188,7 +175,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             idx += 1
 
     async def _parse_din_element(
-        self, element: defused_ET.Element, parsed_data: dict[str, dict[str, Any]]
+        self, element: ET.Element, parsed_data: dict[str, dict[str, Any]]
     ) -> None:
         """Parse XML element containing digital input and counter data."""
         item_id = element.attrib.get("id")
@@ -196,8 +183,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             return
 
         name = element.attrib.get("name")
-        if name and item_id in self.inputs:
-            self.inputs[item_id].name = name
+        if name and item_id in self.conf.inputs:
+            self.conf.inputs[item_id].name = name
 
         bin_val = element.attrib.get("bin")
         if bin_val is not None:
@@ -211,11 +198,11 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 parts = val_str.split()
                 clean_val = parts[0]
                 parsed_data["counter"][semantic_key] = float(clean_val)
-            except ValueError, IndexError:
+            except (ValueError, IndexError):
                 parsed_data["counter"][semantic_key] = None
 
     async def _parse_dout_element(
-        self, element: defused_ET.Element, parsed_data: dict[str, dict[str, Any]]
+        self, element: ET.Element, parsed_data: dict[str, dict[str, Any]]
     ) -> None:
         """Parse XML element containing digital output data."""
         item_id = element.attrib.get("id")
@@ -229,19 +216,10 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         name_val = element.attrib.get("name")
 
-        if name_val is not None and item_id in self.outputs:
-            self.outputs[item_id].name = name_val
+        if name_val is not None and item_id in self.conf.outputs:
+            self.conf.outputs[item_id].name = name_val
 
-    @override
-    def get_location(self) -> str:
-        raise DeviceLogicError("Papago shouldn't use this method!")
-
-    @override
-    def get_name(self) -> str:
-        raise DeviceLogicError("Papago shouldn't use this method!")
-
-    @override
-    def get_identifier(self) -> str:
+    def _get_identifier(self) -> str:
         """Return the identifier of the device."""
         box = self.settings_root.find(".//set[@box='12']")
 
@@ -249,14 +227,16 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             return str(box.attrib.get("mac", ""))
 
         raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.context}"
+            f"The device doesn't have box 12 with MAC address, device: {self.conf.context}"
         )
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
         buttons = []
-        for item_id in self.sensors_types:
-            sensor_name = self.sensors.get(item_id, {}).get("name", f"Sensor {item_id}")
+        for item_id in self.conf.sensors_types:
+            sensor_name = self.conf.sensors.get(item_id, {}).get(
+                "name", f"Sensor {item_id}"
+            )
             buttons.append({
                 "cmd": f"set_sensor_{item_id}",
                 "name": sensor_name,
@@ -271,13 +251,13 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 "type": "input",
                 "name": item_data.name,
             }
-            for item_id, item_data in self.inputs.items()
+            for item_id, item_data in self.conf.inputs.items()
         ]
 
     @override
     def get_supported_numbers(self) -> list[dict[str, Any]]:
         result = []
-        for item_id, input_data in self.inputs.items():
+        for item_id, input_data in self.conf.inputs.items():
             result.extend([
                 {
                     "item_id": item_id,
@@ -285,7 +265,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                     "type": "counter",
                     "name": input_data.name,
                     "min_value": 0,
-                    "max_value": (2**self.size_counter_bits) - 1,
+                    "max_value": (2**self.conf.size_counter_bits) - 1,
                     "step": 10 ** (-int(input_data.decimal_count)),
                 },
                 {
@@ -294,7 +274,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                     "type": "counter",
                     "name": input_data.name,
                     "min_value": 0,
-                    "max_value": (2**self.size_counter_bits) - 1,
+                    "max_value": (2**self.conf.size_counter_bits) - 1,
                     "step": 10 ** (-int(input_data.decimal_count)),
                 },
             ])
@@ -304,7 +284,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         sensors = []
 
-        for item_id, item_data in self.inputs.items():
+        for item_id, item_data in self.conf.inputs.items():
             sensors.append({
                 "item_id": item_id,
                 "value_key": self._generate_semantic_key(self.PULSES, item_id),
@@ -315,7 +295,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 "unit": item_data.unit,
             })
 
-        for sensor_data in self.sensors.values():
+        for sensor_data in self.conf.sensors.values():
             sensor_name = sensor_data["name"]
 
             for sub_id, sub_data in sensor_data["sub_sensors"].items():
@@ -446,14 +426,16 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 "item_id": item_id,
                 "name": item_data.name,
             }
-            for item_id, item_data in self.outputs.items()
+            for item_id, item_data in self.conf.outputs.items()
         ]
 
     @override
     def get_supported_selects(self) -> list[dict[str, Any]]:
         selects = []
-        for item_id in self.sensors_types:
-            sensor_name = self.sensors.get(item_id, {}).get("name", f"Sensor {item_id}")
+        for item_id in self.conf.sensors_types:
+            sensor_name = self.conf.sensors.get(item_id, {}).get(
+                "name", f"Sensor {item_id}"
+            )
             selects.append({
                 "item_id": item_id,
                 "category": "sensor_type",
@@ -461,7 +443,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 "options": self.SENSOR_TYPES,
             })
 
-        for item_id, input_data in self.inputs.items():
+        for item_id, input_data in self.conf.inputs.items():
             selects.append({
                 "item_id": str(int(item_id) + self.INPUT_ID_INCREMENT),
                 "category": "counter_mode",
@@ -487,7 +469,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             self.settings_root = defused_ET.fromstring(settings)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid settings XML: {exception}, in the device: {self.context}"
+                f"Invalid settings XML: {exception}, in the device: {self.conf.context}"
             ) from exception
 
         self._parse_initial_settings()
@@ -496,7 +478,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     async def execute_button_command(self, cmd_type: str) -> None:
         if "set_sensor" not in cmd_type:
             raise DeviceLogicError(
-                f"Unsupported command: {cmd_type}, in the device: {self.context}"
+                f"Unsupported command: {cmd_type}, in the device: {self.conf.context}"
             )
 
         sensor_id = cmd_type.split("_")[2]
@@ -522,7 +504,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         result_tag = find_tag(root, "result")
         if result_tag is not None and result_tag.attrib.get("status") not in ("1", "4"):
             raise DeviceResponseError(
-                f"{self.context} returned an error while auto-detecting sensor, whole response: {response}"
+                f"{self.conf.context} returned an error while auto-detecting sensor, whole response: {response}"
             )
 
         for element in root.iter("set"):
@@ -536,7 +518,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
                 if base is not None and base <= box_num <= base + 1:
                     s_id = str(box_num - base + 1)
-                    self.sensors_types[s_id] = sns_type
+                    self.conf.sensors_types[s_id] = sns_type
 
     async def _set_sensor_type(self, item_id: str, type_idx: str) -> None:
         """Set sensor type by sensor id and type index (exact number that will be send to Meteo)."""
@@ -559,7 +541,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         if target_box is None:
             raise DeviceParseError(
-                f"Box {box_num} not found in settings, in the device: {self.context}"
+                f"Box {box_num} not found in settings, in the device: {self.conf.context}"
             )
 
         safe_defaults = {
@@ -598,7 +580,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         await self._save_setting(xml_payload)
 
-        self.sensors_types[item_id] = str(type_idx)
+        self.conf.sensors_types[item_id] = str(type_idx)
 
     def _check_sensor_response(
         self, response_text: str, expected_status: str, action_msg: str
@@ -609,17 +591,17 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
             if result_tag is None:
                 raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.context}"
+                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
                 )
 
             if result_tag.attrib.get("status") != expected_status:
                 raise DeviceResponseError(
-                    f"{self.context} returned an error while {action_msg}, whole response: {response_text}"
+                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
                 )
 
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.context}"
+                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
             ) from exception
 
     async def _save_setting(self, xml_payload: str) -> None:
@@ -663,14 +645,14 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             real_input_id = str(int(item_id) - self.INPUT_ID_INCREMENT)
         except ValueError as err:
             raise DeviceLogicError(
-                f"Invalid item_id format for input: {item_id}device: {self.context}"
+                f"Invalid item_id format for input: {item_id}device: {self.conf.context}"
             ) from err
 
-        input_item = self.inputs.get(real_input_id)
+        input_item = self.conf.inputs.get(real_input_id)
         if not input_item:
             raise DeviceLogicError(
                 f"Input with ID {real_input_id} not found in parsed data, "
-                f"device: {self.context}"
+                f"device: {self.conf.context}"
             )
 
         box_num = input_item.box_num
@@ -714,13 +696,13 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 )
             case _:
                 raise DeviceLogicError(
-                    f"Unknown number category '{category}' requested for device: {self.context}"
+                    f"Unknown number category '{category}' requested for device: {self.conf.context}"
                 )
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         if category == "sensor_type":
-            sns_type = self.sensors_types.get(item_id)
+            sns_type = self.conf.sensors_types.get(item_id)
             if sns_type is not None and sns_type.isdigit():
                 type_idx = int(sns_type)
                 if 0 <= type_idx < len(self.SENSOR_TYPES):
@@ -729,7 +711,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         if category == "counter_mode":
             real_input_id = str(int(item_id) - self.INPUT_ID_INCREMENT)
-            input_item = self.inputs.get(real_input_id)
+            input_item = self.conf.inputs.get(real_input_id)
             if input_item and str(input_item.type_cnt).isdigit():
                 mode_idx = int(input_item.type_cnt)
                 if 0 <= mode_idx < len(self.COUNTER_MODES):
@@ -737,7 +719,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             return None
 
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.context}"
+            f"Unknown select category '{category}' requested for device: {self.conf.context}"
         )
 
     @override
@@ -761,7 +743,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             return
 
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.context}"
+            f"Unknown select category '{category}' requested for device: {self.conf.context}"
         )
 
     @override
@@ -783,11 +765,11 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
             self._process_box(int(box_id), element)
 
     @abstractmethod
-    def _process_box(self, box_num: int, element: defused_ET.Element) -> None:
+    def _process_box(self, box_num: int, element: ET.Element) -> None:
         """Should be overridden in children to process specific boxes."""
 
     def _parse_standard_input(
-        self, box_num: int, element: defused_ET.Element, input_base: int
+        self, box_num: int, element: ET.Element, input_base: int
     ) -> None:
         """Helper for parsing standard digital inputs and counters."""
 
@@ -799,7 +781,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         value_to_add = element.attrib.get("dst", "1")
         type_cnt = element.attrib.get("enb", "0")
 
-        self.inputs[counter_id] = InputSettings(
+        self.conf.inputs[counter_id] = InputSettings(
             name,
             unit,
             dec,
@@ -810,22 +792,22 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         )
 
     def _parse_standard_sensor_setting(
-        self, box_num: int, element: defused_ET.Element, sensor_base: int
+        self, box_num: int, element: ET.Element, sensor_base: int
     ) -> None:
         """Helper for parsing standard sensor ports from settings.xml."""
         sensor_id = str(box_num - sensor_base + 1)
         sns_type = element.attrib.get("type", "0")
         sensor_name = element.attrib.get("name", f"Sensor {sensor_id}")
 
-        self.sensors_types[sensor_id] = sns_type
+        self.conf.sensors_types[sensor_id] = sns_type
 
-        if sensor_id not in self.sensors:
-            self.sensors[sensor_id] = {
+        if sensor_id not in self.conf.sensors:
+            self.conf.sensors[sensor_id] = {
                 "name": sensor_name,
                 "sub_sensors": {},
             }
         else:
-            self.sensors[sensor_id]["name"] = sensor_name
+            self.conf.sensors[sensor_id]["name"] = sensor_name
 
 
 class PapagoETH_2TH(PapagoETH):
@@ -833,7 +815,7 @@ class PapagoETH_2TH(PapagoETH):
 
     BOX_SENSOR_BASE = 30
 
-    SENSOR_SETTINGS_KEYS = [
+    SENSOR_SETTINGS_KEYS: ClassVar[list[tuple[str, str]]] = [
         ("num01", "type"),
         ("num02", "watch"),
         ("num03", "watch2"),
@@ -851,7 +833,7 @@ class PapagoETH_2TH(PapagoETH):
     ]
 
     @override
-    def _process_box(self, box_num: int, element: defused_ET.Element) -> None:
+    def _process_box(self, box_num: int, element: ET.Element) -> None:
         if self.BOX_SENSOR_BASE <= box_num <= self.BOX_SENSOR_BASE + 1:
             self._parse_standard_sensor_setting(box_num, element, self.BOX_SENSOR_BASE)
 
@@ -863,7 +845,7 @@ class PapagoETH_1TH_2DI_1DO(PapagoETH):
     BOX_INPUT_BASE = 31
     BOX_SENSOR_BASE = 40
 
-    SENSOR_SETTINGS_KEYS = [
+    SENSOR_SETTINGS_KEYS: ClassVar[list[tuple[str, str]]] = [
         ("num00", "tunit"),
         ("num01", "type"),
         ("num02", "watch"),
@@ -881,7 +863,7 @@ class PapagoETH_1TH_2DI_1DO(PapagoETH):
     ]
 
     @override
-    def _process_box(self, box_num: int, element: defused_ET.Element) -> None:
+    def _process_box(self, box_num: int, element: ET.Element) -> None:
         match box_num:
             case self.BOX_SENSOR_BASE:
                 self._parse_standard_sensor_setting(
@@ -889,7 +871,7 @@ class PapagoETH_1TH_2DI_1DO(PapagoETH):
                 )
 
             case self.BOX_OUTPUT_BASE:
-                self.outputs["1"] = OutputSettings("")
+                self.conf.outputs["1"] = OutputSettings("")
 
             case x if self.BOX_INPUT_BASE <= x < self.BOX_SENSOR_BASE:
                 self._parse_standard_input(box_num, element, self.BOX_INPUT_BASE)
@@ -902,10 +884,10 @@ class PapagoETH_5HDI_1DO(PapagoETH):
     BOX_INPUT_BASE = 31
 
     @override
-    def _process_box(self, box_num: int, element: defused_ET.Element) -> None:
+    def _process_box(self, box_num: int, element: ET.Element) -> None:
         match box_num:
             case self.BOX_OUTPUT_BASE:
-                self.outputs["1"] = OutputSettings("")
+                self.conf.outputs["1"] = OutputSettings("")
 
             case x if self.BOX_INPUT_BASE <= x < self.BOX_INPUT_BASE + 1000:
                 self._parse_standard_input(box_num, element, self.BOX_INPUT_BASE)
@@ -916,7 +898,7 @@ class PapagoETH_METEO(PapagoETH):
 
     BOX_SENSOR_BASE = 30
 
-    SENSOR_SETTINGS_KEYS = [
+    SENSOR_SETTINGS_KEYS: ClassVar[list[tuple[str, str]]] = [
         ("num01", "type"),
         ("num02", "watch"),
         ("num03", "watch2"),
@@ -933,7 +915,7 @@ class PapagoETH_METEO(PapagoETH):
         ("str09", "hyst3"),
     ]
 
-    SENSOR_TYPES_AB = {
+    SENSOR_TYPES_AB: ClassVar[dict] = {
         "0": "unused",
         "2": "temperature_ds",
         "3": "temperature_humidity_th3x",
@@ -944,23 +926,25 @@ class PapagoETH_METEO(PapagoETH):
         "10": "rain_gauge",
     }
 
-    SENSOR_TYPES_C = {
+    SENSOR_TYPES_C: ClassVar[dict] = {
         "0": "unused",
         "6": "davis",
     }
 
     @override
-    def _process_box(self, box_num: int, element: defused_ET.Element) -> None:
+    def _process_box(self, box_num: int, element: ET.Element) -> None:
         if self.BOX_SENSOR_BASE <= box_num <= self.BOX_SENSOR_BASE + 2:
             self._parse_standard_sensor_setting(box_num, element, self.BOX_SENSOR_BASE)
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
         buttons = []
-        for item_id in self.sensors_types:
+        for item_id in self.conf.sensors_types:
             if item_id == "3":
                 continue
-            sensor_name = self.sensors.get(item_id, {}).get("name", f"Sensor {item_id}")
+            sensor_name = self.conf.sensors.get(item_id, {}).get(
+                "name", f"Sensor {item_id}"
+            )
             buttons.append({
                 "cmd": f"set_sensor_{item_id}",
                 "name": sensor_name,
@@ -970,8 +954,10 @@ class PapagoETH_METEO(PapagoETH):
     @override
     def get_supported_selects(self) -> list[dict[str, Any]]:
         selects = []
-        for item_id in self.sensors_types:
-            sensor_name = self.sensors.get(item_id, {}).get("name", f"Sensor {item_id}")
+        for item_id in self.conf.sensors_types:
+            sensor_name = self.conf.sensors.get(item_id, {}).get(
+                "name", f"Sensor {item_id}"
+            )
             options_dict = (
                 self.SENSOR_TYPES_C if item_id == "3" else self.SENSOR_TYPES_AB
             )
@@ -988,7 +974,7 @@ class PapagoETH_METEO(PapagoETH):
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         if category in ("sensor_type", "sensor_type_meteo_ab", "sensor_type_meteo_c"):
-            sns_type_code = self.sensors_types.get(item_id)
+            sns_type_code = self.conf.sensors_types.get(item_id)
             if sns_type_code is not None:
                 options_dict = (
                     self.SENSOR_TYPES_C if item_id == "3" else self.SENSOR_TYPES_AB

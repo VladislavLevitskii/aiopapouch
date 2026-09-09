@@ -170,7 +170,7 @@ class PapouchHTTPClient:
             if mode is not None:
                 return int(mode)
 
-            device_name = heartbeat_tag.attrib.get("device")
+            device_name = heartbeat_tag.attrib.get("device", "Unknown")
             if self._check_exceptions_device_web_mode(device_name):
                 return WEB_MODE_INDEX
 

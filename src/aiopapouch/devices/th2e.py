@@ -2,48 +2,33 @@
 
 import logging
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
 from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
 from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
-from .base import HTTPMixin, PapouchDevice, find_tag
+from .base import HTTPMixin, PapouchConfiguration, PapouchDevice, find_tag
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class TH2EConfiguration(PapouchConfiguration):
+    """Configuration for TH2E."""
+
+    sensors: dict[str, dict[str, str]] = field(default_factory=dict)
+    sensor_type: int = 0
 
 
 class TH2E(PapouchDevice, HTTPMixin):
     """Represents TH2E device."""
 
-    @override
     @property
-    def name(self) -> str:
-        """Return device's name."""
-        return self._name
-
     @override
-    @property
-    def location(self) -> str:
-        """Return device's location."""
-        return self._location
-
-    @override
-    @property
-    def manufacturer(self) -> str:
-        """Return device's manufacturer."""
-        return "Papouch s.r.o."
-
-    @override
-    @property
-    def identifier(self) -> str:
-        """Return device's identifier."""
-        return self._mac_address
-
-    @override
-    @property
-    def context(self) -> str:
-        return f"{self.name} ({self.location}) - {self.api_client.ip_address}"
+    def conf(self) -> TH2EConfiguration:
+        return self._conf
 
     def __init__(self, api_client: PapouchHTTPClient, settings: str, info: str) -> None:
         """Constructor for TH2E device."""
@@ -55,12 +40,16 @@ class TH2E(PapouchDevice, HTTPMixin):
         self.info_root = defused_ET.fromstring(info)
         self.settings_root = defused_ET.fromstring(settings)
 
-        self._name = self.get_name()
-        self._location = self.get_location()
-        self._mac_address = self.get_identifier()
+        name = self._get_name()
+        location = self._get_location()
+        mac_address = self._get_identifier()
 
-        self.sensors: dict[str, dict[str, str]] = {}
-        self.sensor_type = 0
+        self._conf = TH2EConfiguration(
+            name=name,
+            location=location,
+            identifier=mac_address,
+            context=f"{name} ({location}) - {self.api_client.ip_address}",
+        )
 
     @override
     async def parse_fresh_data(self, xml_data: str) -> dict:
@@ -79,7 +68,7 @@ class TH2E(PapouchDevice, HTTPMixin):
                 f"The device doesn't have box status tag in fresh.xml, device: {self.context}"
             )
 
-        self.sensor_type = int(status_tag.attrib.get("typesens", "0"))
+        self.conf.sensor_type = int(status_tag.attrib.get("typesens", "0"))
 
         for element in root.iter():
             if not element.tag.endswith("sns"):
@@ -89,6 +78,11 @@ class TH2E(PapouchDevice, HTTPMixin):
             sns_type = element.attrib.get("type")
             unit_code = element.attrib.get("unit", "0")
 
+            if not item_id or not sns_type:
+                raise DeviceParseError(
+                    f"Device: {self.conf.context}, doesn't have id or sensor type"
+                )
+
             semantic_key = self._generate_semantic_key(sns_type, item_id)
 
             # unit 3 means percentage but in global unit map it would be 1
@@ -97,7 +91,7 @@ class TH2E(PapouchDevice, HTTPMixin):
 
             status = element.attrib.get("status", "0")
 
-            self.sensors[item_id] = {
+            self.conf.sensors[item_id] = {
                 "id": item_id,
                 "type": sns_type,
                 "unit": unit_code,
@@ -112,24 +106,21 @@ class TH2E(PapouchDevice, HTTPMixin):
 
         return parsed_data
 
-    @override
-    def get_location(self) -> str:
+    def _get_location(self) -> str:
         """Return the location of the device."""
         heartbeat = find_tag(self.info_root, "heartbeat")
         if heartbeat is not None:
             return heartbeat.attrib.get("location", "")
         return ""
 
-    @override
-    def get_name(self) -> str:
+    def _get_name(self) -> str:
         """Return the name of the device."""
         heartbeat = find_tag(self.info_root, "heartbeat")
         if heartbeat is not None:
             return heartbeat.attrib.get("device", "")
         return ""
 
-    @override
-    def get_identifier(self) -> str:
+    def _get_identifier(self) -> str:
         """Return the identifier of the device."""
         box = self.settings_root.find(".//set[@box='12']")
 
@@ -159,7 +150,7 @@ class TH2E(PapouchDevice, HTTPMixin):
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         sensors = []
 
-        for sns in self.sensors.values():
+        for sns in self.conf.sensors.values():
             item_id = sns["id"]
             sns_type = sns["type"]
             unit_code = sns["unit"]
@@ -222,8 +213,8 @@ class TH2E(PapouchDevice, HTTPMixin):
                 f"Unsupported command: {cmd_type}, in the device: {self.context}"
             )
 
-        self.sensor_type = await self._get_sensor_type()
-        await self._set_sensor_type(self.sensor_type)
+        self.conf.sensor_type = await self._get_sensor_type()
+        await self._set_sensor_type(self.conf.sensor_type)
 
     async def _get_sensor_type(self) -> int:
         request = '<root><set box="19" num1="00001" /></root>'
@@ -354,7 +345,7 @@ class TH2E(PapouchDevice, HTTPMixin):
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         if category == "sensor_type":
-            return self.SENSOR_TYPES[self.sensor_type]
+            return self.SENSOR_TYPES[self.conf.sensor_type]
         else:
             raise DeviceLogicError(
                 f"Unknown select category '{category}' requested for device: {self.context}"
@@ -364,7 +355,7 @@ class TH2E(PapouchDevice, HTTPMixin):
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         type_idx = self.SENSOR_TYPES.index(option)
         await self._set_sensor_type(type_idx)
-        self.sensor_type = type_idx
+        self.conf.sensor_type = type_idx
 
     @override
     async def switch_to_web_mode(self) -> None:

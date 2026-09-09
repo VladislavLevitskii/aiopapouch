@@ -2,6 +2,7 @@
 
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
 import defusedxml.ElementTree as defused_ET
@@ -82,6 +83,17 @@ class HTTPMixin(HttpMixinHost):
             raise DeviceResponseError(
                 f"Response doesn't have the result tag! In the device: {self.context}"
             )
+
+
+@dataclass
+class PapouchConfiguration:
+    """Base configuration for all Papouch devices."""
+
+    identifier: str = ""
+    name: str = ""
+    location: str = ""
+    context: str = ""
+    manufacturer: str = "Papouch s.r.o."
 
 
 class PapouchDevice(ABC):
@@ -167,28 +179,33 @@ class PapouchDevice(ABC):
 
     @property
     @abstractmethod
+    def conf(self) -> PapouchConfiguration:
+        """Return the device configuration."""
+
+    @property
     def name(self) -> str:
         """Return device's name."""
+        return self.conf.name
 
     @property
-    @abstractmethod
     def location(self) -> str:
         """Return device's location."""
+        return self.conf.location
 
     @property
-    @abstractmethod
     def manufacturer(self) -> str:
         """Return device's manufacturer."""
+        return self.conf.manufacturer
 
     @property
-    @abstractmethod
     def identifier(self) -> str:
         """Return device's identifier."""
+        return self.conf.identifier
 
     @property
-    @abstractmethod
     def context(self) -> str:
         """Return context of the device (its name, location and identifier, possibly other information)"""
+        return self.conf.context
 
     @abstractmethod
     async def parse_fresh_data(self, xml_data: str) -> dict:
@@ -310,25 +327,6 @@ class PapouchDevice(ABC):
     @abstractmethod
     async def switch_to_web_mode(self) -> None:
         """Switch the device network mode to WEB."""
-
-    @abstractmethod
-    def get_location(self) -> str:
-        """Return the location of the device.
-
-        Note that this method is used only in a config flow
-        that means after user changes the location of the device
-        this method will return invalid data.
-
-        These data are from info value but it is loaded only in ctor.
-        """
-
-    @abstractmethod
-    def get_name(self) -> str:
-        """Return the name of the device."""
-
-    @abstractmethod
-    def get_identifier(self) -> str:
-        """Return the identifier of the device."""
 
     @abstractmethod
     def _parse_initial_settings(self) -> None:
