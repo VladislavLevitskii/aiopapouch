@@ -18,7 +18,7 @@ pip install aiopapouch
 
 ## Supported Devices
 
-Currently, the library supports the following Ethernet devices communicating via WEB mode:
+Currently, the library supports the following Ethernet devices communicating via WEB and TCP server mode:
 
 * Quido ETH
 * Papago
