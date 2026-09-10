@@ -22,4 +22,4 @@ class DeviceLogicError(DeviceError):
 
 
 class DeviceParseError(DeviceError):
-    """Parse XML error."""
+    """Parsing error."""

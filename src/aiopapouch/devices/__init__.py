@@ -10,8 +10,10 @@ from .base import PapouchDevice
 from .papago import async_setup_network_papago
 from .quido import async_setup_network_quido, async_setup_serial_quido
 from .th2e import async_setup_network_th2e
+from .thco2 import async_setup_serial_thco2
 from .tht2 import async_setup_serial_tht2
 from .tme import async_setup_network_tme
+from .tqs4 import async_setup_serial_tqs4
 
 SERIAL = "serial"
 NETWORK = "network"
@@ -41,6 +43,12 @@ DEVICE_SETUP_HANDLERS = {
     }),
     "THT2": DeviceHandler({
         SERIAL: async_setup_serial_tht2,
+    }),
+    "TQS4": DeviceHandler({
+        SERIAL: async_setup_serial_tqs4,
+    }),
+    "THCO2": DeviceHandler({
+        SERIAL: async_setup_serial_thco2,
     }),
 }
 
