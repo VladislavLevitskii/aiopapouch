@@ -128,47 +128,25 @@ class TMEBase(PapouchDevice, ABC):
 
             for sub_id, sub_data in sensor_data.get("sub_sensors", {}).items():
                 sns_type = sub_data["type"]
-                unit = sub_data["unit"]
+                unit_val = sub_data["unit"]
 
-                semantic_key = self._generate_semantic_key(sns_type, sub_id)
+                if sns_type in self.TYPE_MAPPING:
+                    unit_str = (
+                        self._get_unit(sns_type, unit_val)
+                        if sns_type in self.UNIT_MAP
+                        else unit_val
+                    )
 
-                if sns_type == "1":
+                    if sensor_name == "":
+                        sensor_name = f"Sensor {sub_id}"
+
                     sensors.append({
                         "item_id": sub_id,
-                        "value_key": semantic_key,
+                        "value_key": self._generate_semantic_key(sns_type, sub_id),
                         "type": "sensor",
-                        "data_type": "temperature",
+                        "data_type": self.TYPE_MAPPING[sns_type],
                         "name": sensor_name,
-                        "unit": unit,
-                    })
-                elif sns_type == "2":
-                    sensors.append({
-                        "item_id": sub_id,
-                        "value_key": semantic_key,
-                        "type": "sensor",
-                        "data_type": "humidity",
-                        "name": sensor_name,
-                        "unit": unit,
-                    })
-                elif sns_type == "batt":
-                    sensors.append({
-                        "item_id": sub_id,
-                        "value_key": self._generate_semantic_key(self.BATTERY, sub_id),
-                        "type": "sensor",
-                        "data_type": "battery",
-                        "name": sensor_name,
-                        "unit": "%",
-                    })
-                elif sns_type == "rssi":
-                    sensors.append({
-                        "item_id": sub_id,
-                        "value_key": self._generate_semantic_key(
-                            self.SIGNAL_STRENGTH, sub_id
-                        ),
-                        "type": "sensor",
-                        "data_type": "signal_strength",
-                        "name": sensor_name,
-                        "unit": "dBm",
+                        "unit": unit_str,
                     })
 
         return sensors
@@ -231,11 +209,10 @@ class TME(TMEBase):
 
         status = element.attrib.get("status", "0")
         unit_code = element.attrib.get("unit", "0")
-        real_unit = self._get_unit(self.TEMPERATURE_SNS_TYPE, unit_code)
 
         self.conf.sensors[self.ITEM_ID]["sub_sensors"][self.ITEM_ID] = {
             "type": "1",
-            "unit": real_unit,
+            "unit": unit_code,
         }
 
         semantic_key = self._generate_semantic_key(
@@ -270,9 +247,7 @@ class TMERadioMulti(TMEBase):
     ) -> None:
         """Parse Multi/Radio format."""
 
-        formatted_temp_unit = (
-            f"°{global_unit}" if global_unit in ("C", "F") else global_unit
-        )
+        vc = int(element.attrib.get("vc", "0"))
 
         base_item_id = element.attrib.get("id", "1")
         base_name = element.attrib.get("name", "Sensor")
@@ -283,6 +258,8 @@ class TMERadioMulti(TMEBase):
                 "sub_sensors": {},
             }
 
+        temp_unit_code = {"C": "0", "F": "1"}.get(global_unit, "0")
+
         idx = 1
         while True:
             status_str = element.attrib.get(f"s{idx}")
@@ -292,21 +269,34 @@ class TMERadioMulti(TMEBase):
                 break
 
             item_id = base_item_id if idx == 1 else f"{base_item_id}_{idx}"
-            final_unit = formatted_temp_unit if idx == 1 else "%"
 
             sns_type = str(idx)
+
+            if vc == 1395 and idx == 3:
+                sns_type = self.CO2_SNS_TYPE
+                unit_code = "0"
+            elif idx == 1:
+                sns_type = self.TEMPERATURE_SNS_TYPE
+                unit_code = temp_unit_code
+            else:
+                sns_type = str(idx)
+                unit_code = "0"
+
             semantic_key = self._generate_semantic_key(sns_type, item_id)
 
             self.conf.sensors[base_item_id]["sub_sensors"][item_id] = {
-                "type": str(idx),
-                "unit": final_unit,
+                "type": sns_type,
+                "unit": unit_code,
             }
 
             if status_str != "0":
                 parsed_data["sensor"][semantic_key] = None
             else:
                 try:
-                    parsed_data["sensor"][semantic_key] = float(raw_val) / 10.0
+                    if vc == 1395 and idx == 3:
+                        parsed_data["sensor"][semantic_key] = int(raw_val)
+                    else:
+                        parsed_data["sensor"][semantic_key] = float(raw_val) / 10
                 except ValueError:
                     parsed_data["sensor"][semantic_key] = None
 
@@ -317,7 +307,7 @@ class TMERadioMulti(TMEBase):
             batt_value = round((int(batt) - 1) * (100 / 7), 1)
             batt_id = f"{base_item_id}_batt"
             self.conf.sensors[base_item_id]["sub_sensors"][batt_id] = {
-                "type": "batt",
+                "type": self.BATTERY,
                 "unit": "%",
             }
             semantic_key = self._generate_semantic_key(self.BATTERY, batt_id)
@@ -327,7 +317,7 @@ class TMERadioMulti(TMEBase):
         if rssi is not None:
             rssi_id = f"{base_item_id}_rssi"
             self.conf.sensors[base_item_id]["sub_sensors"][rssi_id] = {
-                "type": "rssi",
+                "type": self.SIGNAL_STRENGTH,
                 "unit": "dBm",
             }
             semantic_key = self._generate_semantic_key(self.SIGNAL_STRENGTH, rssi_id)

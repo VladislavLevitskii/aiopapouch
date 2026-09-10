@@ -155,38 +155,15 @@ class TH2E(PapouchDevice, HTTPMixin):
             sns_type = sns["type"]
             unit_code = sns["unit"]
 
-            semantic_key = self._generate_semantic_key(sns_type, item_id)
-
-            match sns_type:
-                case self.TEMPERATURE_SNS_TYPE:
-                    sensors.append({
-                        "item_id": item_id,
-                        "value_key": semantic_key,
-                        "type": "sensor",
-                        "data_type": "temperature",
-                        "name": None,
-                        "unit": self._get_unit(sns_type, unit_code),
-                    })
-
-                case self.HUMIDITY_SNS_TYPE:
-                    sensors.append({
-                        "item_id": item_id,
-                        "value_key": semantic_key,
-                        "type": "sensor",
-                        "data_type": "humidity",
-                        "name": None,
-                        "unit": self._get_unit(sns_type, unit_code),
-                    })
-
-                case self.DEW_POINT_SNS_TYPE:
-                    sensors.append({
-                        "item_id": item_id,
-                        "value_key": semantic_key,
-                        "type": "sensor",
-                        "data_type": "dew_point",
-                        "name": None,
-                        "unit": self._get_unit(sns_type, unit_code),
-                    })
+            if sns_type in self.TYPE_MAPPING:
+                sensors.append({
+                    "item_id": item_id,
+                    "value_key": self._generate_semantic_key(sns_type, item_id),
+                    "type": "sensor",
+                    "data_type": self.TYPE_MAPPING[sns_type],
+                    "name": None,
+                    "unit": self._get_unit(sns_type, unit_code),
+                })
 
         return sensors
 

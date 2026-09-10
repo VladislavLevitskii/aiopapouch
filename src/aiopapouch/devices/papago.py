@@ -302,120 +302,37 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
                 sns_type = sub_data["type"]
                 unit_code = sub_data["unit"]
 
+                if sns_type not in self.TYPE_MAPPING:
+                    continue
+
                 semantic_key = self._generate_semantic_key(sns_type, sub_id)
+                data_type = self.TYPE_MAPPING[sns_type]
+                unit_str = self._get_unit(sns_type, unit_code)
+                final_name = sensor_name
 
-                match sns_type:
-                    case self.TEMPERATURE_SNS_TYPE:
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "temperature",
-                            "name": sensor_name,
-                            "unit": self._get_unit(sns_type, unit_code),
-                        })
+                if sns_type == self.WIND_DIRECTION_SNS_TYPE:
+                    if unit_str != "°":
+                        data_type = "wind_direction_text"
+                        unit_str = None
+                elif sns_type == self.RAIN_SNS_TYPE:
+                    if unit_code == "0":
+                        final_name = f"{sensor_name} 15 Min"
+                        data_type = "rain"
+                    elif unit_code == "1":
+                        final_name = f"{sensor_name} Hourly"
+                        data_type = "precipitation_intensity"
+                    elif unit_code == "2":
+                        final_name = f"{sensor_name} Daily"
+                        data_type = "precipitation_intensity"
 
-                    case self.HUMIDITY_SNS_TYPE:
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "humidity",
-                            "name": sensor_name,
-                            "unit": self._get_unit(sns_type, unit_code),
-                        })
-
-                    case self.DEW_POINT_SNS_TYPE:
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "dew_point",
-                            "name": sensor_name,
-                            "unit": self._get_unit(sns_type, unit_code),
-                        })
-
-                    case self.CO2_SNS_TYPE:
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "co2",
-                            "name": sensor_name,
-                            "unit": self._get_unit(sns_type, unit_code),
-                        })
-
-                    case self.PRESSURE_SNS_TYPE:
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "pressure",
-                            "name": sensor_name,
-                            "unit": self._get_unit(sns_type, unit_code),
-                        })
-
-                    case self.WIND_DIRECTION_SNS_TYPE:
-                        unit_str = self._get_unit(sns_type, unit_code)
-                        if unit_str == "°":
-                            sensors.append({
-                                "item_id": sub_id,
-                                "value_key": semantic_key,
-                                "type": "sensor",
-                                "data_type": "wind_direction",
-                                "name": sensor_name,
-                                "unit": "°",
-                            })
-                        else:
-                            sensors.append({
-                                "item_id": sub_id,
-                                "value_key": semantic_key,
-                                "type": "sensor",
-                                "data_type": "wind_direction_text",
-                                "name": sensor_name,
-                                "unit": None,
-                            })
-
-                    case self.WIND_SPEED_SNS_TYPE:
-                        sensors.append({
-                            "item_id": sub_id,
-                            "value_key": semantic_key,
-                            "type": "sensor",
-                            "data_type": "wind_speed",
-                            "name": sensor_name,
-                            "unit": self._get_unit(sns_type, unit_code),
-                        })
-
-                    case self.RAIN_SNS_TYPE:
-                        unit_str = self._get_unit(sns_type, unit_code)
-
-                        if unit_code == "0":
-                            sensors.append({
-                                "item_id": sub_id,
-                                "value_key": semantic_key,
-                                "type": "sensor",
-                                "data_type": "rain",
-                                "name": f"{sensor_name} 15 Min",
-                                "unit": unit_str,
-                            })
-                        elif unit_code == "1":
-                            sensors.append({
-                                "item_id": sub_id,
-                                "value_key": semantic_key,
-                                "type": "sensor",
-                                "data_type": "precipitation_intensity",
-                                "name": f"{sensor_name} Hourly",
-                                "unit": unit_str,
-                            })
-                        elif unit_code == "2":
-                            sensors.append({
-                                "item_id": sub_id,
-                                "value_key": semantic_key,
-                                "type": "sensor",
-                                "data_type": "precipitation_intensity",
-                                "name": f"{sensor_name} Daily",
-                                "unit": unit_str,
-                            })
+                sensors.append({
+                    "item_id": sub_id,
+                    "value_key": semantic_key,
+                    "type": "sensor",
+                    "data_type": data_type,
+                    "name": final_name,
+                    "unit": unit_str,
+                })
 
         return sensors
 
