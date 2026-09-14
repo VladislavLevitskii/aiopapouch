@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from ..client import PapouchSerialClient
+from ..exceptions import DeviceLogicError
 from .base import PapouchConfiguration, PapouchDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -119,34 +120,42 @@ class TQS4(PapouchDevice):
     @override
     async def execute_button_command(self, cmd_type: str) -> None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def switch_to_web_mode(self) -> None:
         """TQS4 is a serial device."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     def _parse_initial_settings(self) -> None:
         """Unused in TQS4."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
 
 async def async_setup_serial_tqs4(

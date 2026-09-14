@@ -666,7 +666,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     @override
     async def switch_to_web_mode(self) -> None:
         """Unused in Papago."""
-        raise DeviceLogicError("Calling not implemented method.")
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     def _parse_initial_settings(self) -> None:

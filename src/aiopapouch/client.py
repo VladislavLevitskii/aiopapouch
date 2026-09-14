@@ -8,7 +8,6 @@ from typing import Any
 
 import aiohttp
 import defusedxml.ElementTree as defused_ET
-
 from pap_spinel import Packet97, SpinelClient, SpinelError
 
 from .exceptions import DeviceAuthError, DeviceConnectionError, DeviceLogicError

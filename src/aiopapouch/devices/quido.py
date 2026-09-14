@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, cast, override
 
 import defusedxml.ElementTree as defused_ET
-
 from pap_spinel import ACK_FAILURE
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
@@ -740,6 +739,7 @@ class QuidoRS485(QuidoBase):
     @override
     def _parse_initial_settings(self) -> None:
         """Unused."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @staticmethod
     async def get_number_io(

@@ -9,7 +9,7 @@ from typing import Any, cast, override
 import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
-from ..exceptions import DeviceParseError, DeviceResponseError
+from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
 from .base import PapouchConfiguration, PapouchDevice, find_tag
 
 _LOGGER = logging.getLogger(__name__)
@@ -164,31 +164,36 @@ class TMEBase(PapouchDevice, ABC):
     @override
     async def execute_button_command(self, cmd_type: str) -> None:
         """Unused in TME."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Unused in TME."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Unused in TME."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         """Unused in TME."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Unused in TME."""
-        return None
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Unused in TME."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     def _parse_initial_settings(self) -> None:
-        pass
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
 
 class TME(TMEBase):
@@ -233,7 +238,7 @@ class TME(TMEBase):
     @override
     async def switch_to_web_mode(self) -> None:
         """Unused in TME."""
-
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
 class TMERadioMulti(TMEBase):
     """Defines THE Multi / Radio device."""

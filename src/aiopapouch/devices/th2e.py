@@ -133,7 +133,6 @@ class TH2E(PapouchDevice, HTTPMixin):
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
-        """Unused in TH2E."""
         return [{"translation": "set_sensor", "cmd": "set_sensor"}]
 
     @override
@@ -307,17 +306,17 @@ class TH2E(PapouchDevice, HTTPMixin):
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Unused in TH2E."""
-        return
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Unused in TH2E."""
-        return
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         """Unused in TH2E."""
-        return
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
@@ -373,7 +372,7 @@ class TH2E(PapouchDevice, HTTPMixin):
 
     @override
     def _parse_initial_settings(self) -> None:
-        pass
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
 
 async def async_setup_network_th2e(client: PapouchHTTPClient) -> TH2E | None:
