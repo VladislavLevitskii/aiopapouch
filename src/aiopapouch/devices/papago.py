@@ -307,7 +307,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
                 semantic_key = self._generate_semantic_key(sns_type, sub_id)
                 data_type = self.TYPE_MAPPING[sns_type]
-                unit_str = self._get_unit(sns_type, unit_code)
+                unit_str: str | None = self._get_unit(sns_type, unit_code)
                 final_name = sensor_name
 
                 if sns_type == self.WIND_DIRECTION_SNS_TYPE:

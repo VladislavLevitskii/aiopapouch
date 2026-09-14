@@ -272,7 +272,7 @@ class PapouchDevice(ABC):
             "type": str,
             "data_type": str,
             "name": str | None,
-            "unit": str,
+            "unit": str | None,
         }
         """
 
