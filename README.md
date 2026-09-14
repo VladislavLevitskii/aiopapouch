@@ -34,6 +34,8 @@ and these are devices that use serial communiction (RS485):
 
 * Quido RS485
 * THT2
+* THCO2
+* TQS 4
 
 ## Devices
 
