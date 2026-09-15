@@ -45,6 +45,8 @@ This section describes minor details about both clients. Both are designed for e
 
 `PapouchHTTPClient` is not just a simple HTTP client, it handles more functionality than a standard client should. The client holds context about the devices, meaning it provides methods for fetching specific data (fresh data, info, settings, device mode) and retrieving particular pieces of it.
 
+> **Note**: Don't forget about `get_device_mode`, this method is used in retrieving device mode of the device and some of them does **NOT** have the proper tag (it is not standardized), so you will need to include these devices in the exception list.
+
 ### Serial
 
 The same applies to `PapouchSerialClient`. It is a wrapper around `SpinelClient` from the `pap_spinel` library and has standard transport methods (`open`/`close`), as well as device-related methods (fetching manufacturing data, location, setting the address, etc.).
@@ -52,6 +54,10 @@ The same applies to `PapouchSerialClient`. It is a wrapper around `SpinelClient`
 ### Context
 
 Since every device provides a `context` property, it is heavily used in the communication methods of the clients. This is utilized to include the context of the problem within exceptions. For example, exceptions will automatically provide the identifier and name of the device that threw them.
+
+## Converters
+
+This section is straightforward, don't use converters at all unless you need somehow to distinguish between converters and network devices using only IP address. Converters are created in Home Assistant primarily for UX purposes and delegate the responsibility of resolving the converter mode to this library.
 
 ## Creating the Devices
 

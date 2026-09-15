@@ -7,6 +7,7 @@ from typing import NamedTuple
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..utils import parse_device_location, parse_device_name, parse_device_serial_number
 from .base import PapouchDevice
+from .converters import PapouchHTTPConverter, async_setup_converter_edgar
 from .papago import async_setup_network_papago
 from .quido import async_setup_network_quido, async_setup_serial_quido
 from .th2e import async_setup_network_th2e
@@ -25,6 +26,12 @@ class DeviceHandler(NamedTuple):
     """Represents device handler containing a dictionary of setup functions keyed by connection type."""
 
     setup_funcs: dict[str, Callable]
+
+
+class ConverterHandler(NamedTuple):
+    """Represents converter handler containing a setup function."""
+
+    setup_func: Callable
 
 
 DEVICE_SETUP_HANDLERS = {
@@ -52,6 +59,8 @@ DEVICE_SETUP_HANDLERS = {
     }),
 }
 
+CONVERTER_SETUP_HANDLERS = {"EDGAR": ConverterHandler(async_setup_converter_edgar)}
+
 
 def _get_device_handler(
     device_name: str | None, device_type: str
@@ -66,9 +75,25 @@ def _get_device_handler(
     return None
 
 
+def _get_converter_handler(converter_name: str | None) -> ConverterHandler | None:
+    if not converter_name:
+        return None
+
+    for prefix, handler in CONVERTER_SETUP_HANDLERS.items():
+        if prefix in converter_name:
+            return handler
+
+    return None
+
+
 def is_device_supported(device_name: str | None, device_type: str) -> bool:
     """Check if the extracted device name matches any supported prefix and type of the communication."""
     return _get_device_handler(device_name, device_type) is not None
+
+
+def is_converter_supported(converter_name: str | None) -> bool:
+    """Check if the extracted converter name matches any supported prefix."""
+    return _get_converter_handler(converter_name) is not None
 
 
 async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice | None:
@@ -85,6 +110,20 @@ async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice 
 
     setup_func = handler.setup_funcs[NETWORK]
     return await setup_func(api_client)
+
+
+async def create_converter(
+    api_client: PapouchHTTPClient,
+) -> PapouchHTTPConverter | None:
+    """Create network hub."""
+
+    converter_name, _ = await api_client.get_device_info()
+
+    handler = _get_converter_handler(converter_name)
+    if not handler:
+        return None
+
+    return await handler.setup_func(api_client, converter_name)
 
 
 async def create_serial_device(
@@ -121,7 +160,9 @@ async def create_serial_device(
 
 __all__ = [
     "PapouchDevice",
+    "create_converter",
     "create_network_device",
     "create_serial_device",
+    "is_converter_supported",
     "is_device_supported",
 ]
