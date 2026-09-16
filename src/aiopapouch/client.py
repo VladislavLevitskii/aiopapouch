@@ -17,6 +17,7 @@ DATA_URL = "fresh.xml"
 SETTINGS_URL = "settings.xml"
 SET_URL = "set.xml"
 SAVE_URL = "save.xml"
+SAVE_SETTINGS_ENDPOINT = "savesettings.xml"
 
 ENCODING = "iso-8859-2"
 WEB_MODE_INDEX = 3

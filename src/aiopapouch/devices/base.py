@@ -348,3 +348,7 @@ class PapouchHTTPConverter(ABC):
     @abstractmethod
     async def get_mode(self) -> int:
         """Return converter mode."""
+
+    @abstractmethod
+    async def switch_to_tcp_server(self) -> None:
+        """Switch the converter to WEB mode"""

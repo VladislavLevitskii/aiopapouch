@@ -8,7 +8,7 @@ from typing import Any, ClassVar, cast, override
 
 import defusedxml.ElementTree as defused_ET
 
-from ..client import PapouchHTTPClient
+from ..client import SAVE_SETTINGS_ENDPOINT, PapouchHTTPClient
 from ..exceptions import (
     DeviceLogicError,
     DeviceParseError,
@@ -61,8 +61,6 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     api_client: PapouchHTTPClient
 
     BOX_SENSOR_BASE: int | None = None
-
-    SAVE_ENDPOINT = "savesettings.xml"
 
     SENSOR_SETTINGS_KEYS: ClassVar[list[tuple[str, str]]]
 
@@ -407,7 +405,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         payload = f'<root><set box="98" num01="{result_id}" /></root>'
 
         response = await self.api_client.write_command(
-            payload, f"{self.name} ({self.location})", self.SAVE_ENDPOINT
+            payload, f"{self.name} ({self.location})", SAVE_SETTINGS_ENDPOINT
         )
 
         if not response:
@@ -525,7 +523,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         resp_start = await self.api_client.write_command(
             '<root><set box="0" /></root>',
             f"{self.name} ({self.location})",
-            self.SAVE_ENDPOINT,
+            SAVE_SETTINGS_ENDPOINT,
         )
 
         self._check_sensor_response(
@@ -535,7 +533,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         )
 
         resp_data = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})", self.SAVE_ENDPOINT
+            xml_payload, f"{self.name} ({self.location})", SAVE_SETTINGS_ENDPOINT
         )
 
         self._check_sensor_response(
@@ -545,7 +543,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         resp_save = await self.api_client.write_command(
             '<root><set box="99" /></root>',
             f"{self.name} ({self.location})",
-            self.SAVE_ENDPOINT,
+            SAVE_SETTINGS_ENDPOINT,
         )
         self._check_sensor_response(
             resp_save,
