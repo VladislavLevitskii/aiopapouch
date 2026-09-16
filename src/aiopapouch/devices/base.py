@@ -335,20 +335,3 @@ class PapouchDevice(ABC):
         Note that this is called only in ctor of the proper device
         and should be a private method.
         """
-
-
-class PapouchHTTPConverter(ABC):
-    """Represent HTTP Converters."""
-
-    @property
-    @abstractmethod
-    def conf(self) -> PapouchConfiguration:
-        """Return the device configuration."""
-
-    @abstractmethod
-    async def get_mode(self) -> int:
-        """Return converter mode."""
-
-    @abstractmethod
-    async def switch_to_tcp_server(self) -> None:
-        """Switch the converter to WEB mode"""

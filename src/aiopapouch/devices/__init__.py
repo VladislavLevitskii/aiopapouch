@@ -4,10 +4,16 @@ import logging
 from collections.abc import Callable
 from typing import NamedTuple
 
+from aiopapouch.exceptions import DeviceConnectionError
+
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..utils import parse_device_location, parse_device_name, parse_device_serial_number
 from .base import PapouchDevice
-from .converters import PapouchHTTPConverter, async_setup_converter_edgar
+from .converters import (
+    PapouchHTTPConverter,
+    async_setup_converter_edgar,
+    async_setup_converter_gnome,
+)
 from .papago import async_setup_network_papago
 from .quido import async_setup_network_quido, async_setup_serial_quido
 from .th2e import async_setup_network_th2e
@@ -23,7 +29,10 @@ _LOGGER = logging.getLogger()
 
 
 class DeviceHandler(NamedTuple):
-    """Represents device handler containing a dictionary of setup functions keyed by connection type."""
+    """Represents device handler
+
+    Contains a dictionary of setup functions keyed by connection type.
+    """
 
     setup_funcs: dict[str, Callable]
 
@@ -59,7 +68,10 @@ DEVICE_SETUP_HANDLERS = {
     }),
 }
 
-CONVERTER_SETUP_HANDLERS = {"EDGAR": ConverterHandler(async_setup_converter_edgar)}
+CONVERTER_SETUP_HANDLERS = {
+    "EDGAR": ConverterHandler(async_setup_converter_edgar),
+    "GNOME": ConverterHandler(async_setup_converter_gnome),
+}
 
 
 def _get_device_handler(
@@ -117,13 +129,19 @@ async def create_converter(
 ) -> PapouchHTTPConverter | None:
     """Create network hub."""
 
-    converter_name, _ = await api_client.get_device_info()
+    try:
+        converter_name, _ = await api_client.get_device_info()
+    except DeviceConnectionError:
+        # can be gnome, todo if there will be more converters without web add a list of lambdas
+        if converter := await async_setup_converter_gnome(api_client):
+            return converter
 
-    handler = _get_converter_handler(converter_name)
-    if not handler:
-        return None
+        raise
 
-    return await handler.setup_func(api_client, converter_name)
+    if handler := _get_converter_handler(converter_name):
+        return await handler.setup_func(api_client, converter_name)
+
+    return None
 
 
 async def create_serial_device(
