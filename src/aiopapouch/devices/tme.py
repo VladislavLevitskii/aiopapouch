@@ -1,5 +1,6 @@
 """This file contains classes that define Papouch devices."""
 
+import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
@@ -240,6 +241,7 @@ class TME(TMEBase):
         """Unused in TME."""
         raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
+
 class TMERadioMulti(TMEBase):
     """Defines THE Multi / Radio device."""
 
@@ -364,6 +366,8 @@ class TMERadioMulti(TMEBase):
         )
 
         self._check_sensor_response(response, "2", "setting to WEB mode")
+
+        await asyncio.sleep(15)
 
     def _check_sensor_response(
         self, response_text: str, expected_status: str, action_msg: str

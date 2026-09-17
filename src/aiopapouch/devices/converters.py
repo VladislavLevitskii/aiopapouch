@@ -11,7 +11,6 @@ import defusedxml.ElementTree as defused_ET
 
 from aiopapouch.exceptions import (
     DeviceConnectionError,
-    DeviceLogicError,
     DeviceParseError,
     DeviceResponseError,
 )
@@ -181,6 +180,8 @@ class Edgar(PapouchHTTPConverter):
             action_msg="saving and restarting the device",
         )
 
+        await asyncio.sleep(15)
+
 
 async def async_setup_converter_edgar(client: PapouchHTTPClient, name: str) -> Edgar:
     """Async factory for Edgar converter."""
@@ -195,11 +196,20 @@ async def async_setup_converter_edgar(client: PapouchHTTPClient, name: str) -> E
 class Gnome(PapouchHTTPConverter):
     """Represent Gnome converters."""
 
-    def __init__(self, identifier: str, name: str, tcp_port: int, device_mode: int):
+    def __init__(
+        self,
+        client: PapouchHTTPClient,
+        identifier: str,
+        name: str,
+        tcp_port: int,
+        device_mode: int,
+    ):
+        _location = "Serial"
         self._conf = ConverterConfiguration(
-            identifier, name, "Serial", name, tcp_port=tcp_port
+            identifier, name, _location, f"{name} ({_location})", tcp_port=tcp_port
         )
         self._device_mode = device_mode
+        self._client = client
 
     @override
     @property
@@ -212,15 +222,122 @@ class Gnome(PapouchHTTPConverter):
 
     @override
     async def switch_to_tcp_server(self) -> None:
-        """Unused."""
-        raise DeviceLogicError("Gnome shouldn't use this method.")
+        """Switch the GNOME device to TCP server mode via Telnet."""
+        await self._async_set_gnome_tcp_server()
+        self._device_mode = TCP_SERVER_MODE_INDEX
+
+    async def _async_set_gnome_tcp_server(self) -> None:
+        """Connect to Telnet, change ConnectMode to TCP Server (C0) and restart."""
+        reader = None
+        writer = None
+        ip = self._client.ip_address
+
+        await asyncio.sleep(4.0)
+
+        for attempt in range(4):
+            try:
+                reader, writer = await asyncio.open_connection(ip, 9999)
+                break
+            except OSError as err:
+                if attempt == 3:
+                    raise DeviceConnectionError(
+                        f"Cannot connect to Gnome {ip} Telnet port for setup: {err}"
+                    ) from err
+                await asyncio.sleep(2.0)
+
+        if reader is None or writer is None:
+            raise DeviceConnectionError(
+                f"Failed to open connection to Gnome {ip} Telnet port"
+            )
+
+        try:
+            await reader.read(1024)
+
+            writer.write(b"\r\n")
+            await asyncio.wait_for(writer.drain(), timeout=5.0)
+
+            buffer = bytearray()
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(reader.read(1024), timeout=0.4)
+                    if not chunk:
+                        break
+                    buffer.extend(chunk)
+                    if b"Your choice ?" in buffer:
+                        break
+                except TimeoutError:
+                    break
+
+            if b"Your choice ?" not in buffer:
+                raise DeviceConnectionError(f"Gnome {ip} did not enter Setup Mode.")
+
+            writer.write(b"1\r\n")
+            await asyncio.wait_for(writer.drain(), timeout=5.0)
+
+            while True:
+                prompt_buffer = bytearray()
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(reader.read(1024), timeout=0.4)
+                        if not chunk:
+                            break
+                        prompt_buffer.extend(chunk)
+
+                        if (
+                            b"Your choice ?" in prompt_buffer
+                            or b"?" in prompt_buffer
+                            or b":" in prompt_buffer
+                        ):
+                            await asyncio.sleep(0.1)
+                            try:
+                                extra = await asyncio.wait_for(
+                                    reader.read(100), timeout=0.2
+                                )
+                                if extra:
+                                    prompt_buffer.extend(extra)
+                            except TimeoutError:
+                                pass
+                            break
+                    except TimeoutError:
+                        break
+
+                if not prompt_buffer:
+                    break
+
+                prompt_str = prompt_buffer.decode("ascii", errors="ignore")
+
+                if "Your choice ?" in prompt_str:
+                    break
+
+                if "ConnectMode" in prompt_str or "Connect Mode" in prompt_str:
+                    writer.write(b"C0\r\n")
+                else:
+                    writer.write(b"\r\n")
+
+                await asyncio.wait_for(writer.drain(), timeout=5.0)
+
+            writer.write(b"9\r\n")
+            await asyncio.wait_for(writer.drain(), timeout=5.0)
+
+            while True:
+                try:
+                    exit_chunk = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                    if not exit_chunk:
+                        break
+                except TimeoutError:
+                    break
+
+        finally:
+            writer.close()
+            await writer.wait_closed()
+            await asyncio.sleep(15)
 
 
 async def _async_is_gnome_device(client: PapouchHTTPClient) -> bool:
     """Check via HTTP if the device is a Gnome."""
     try:
         version_js = await client.read_command(
-            {}, "Trying to create Gnome", "papouch-version.js"
+            {}, f"Trying to create Gnome {client.ip_address}", "papouch-version.js"
         )
         return "gnome" in version_js.lower()
     except DeviceConnectionError:
@@ -238,12 +355,14 @@ async def _async_download_gnome_config(ip_address: str) -> tuple[bytes, bytes]:
         except OSError as err:
             if attempt == 3:
                 raise DeviceConnectionError(
-                    f"Cannot connect to Gnome Telnet port: {err}"
+                    f"Cannot connect to Gnome {ip_address} Telnet port: {err}"
                 ) from err
             await asyncio.sleep(2.0)
 
     if reader is None or writer is None:
-        raise DeviceConnectionError("Failed to open connection to Gnome Telnet port")
+        raise DeviceConnectionError(
+            f"Failed to open connection to Gnome {ip_address} Telnet port"
+        )
 
     init_data = await reader.read(1024)
     writer.write(b"\r\n")
@@ -343,4 +462,4 @@ async def async_setup_converter_gnome(client: PapouchHTTPClient) -> Gnome | None
         init_data, config_data
     )
 
-    return Gnome(mac_address, f"Gnome {interface_type}", tcp_port, device_mode)
+    return Gnome(client, mac_address, f"Gnome {interface_type}", tcp_port, device_mode)

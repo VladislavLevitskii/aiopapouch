@@ -1,5 +1,6 @@
 """This file contains definition of the TH2E device."""
 
+import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -369,6 +370,8 @@ class TH2E(PapouchDevice, HTTPMixin):
         )
 
         self._check_sensor_response(response, "2", "setting to WEB mode")
+
+        await asyncio.sleep(15)
 
     @override
     def _parse_initial_settings(self) -> None:

@@ -326,7 +326,7 @@ class PapouchDevice(ABC):
 
     @abstractmethod
     async def switch_to_web_mode(self) -> None:
-        """Switch the device network mode to WEB."""
+        """Switch the device network mode to WEB and wait 15-30 seconds. (Depends on the device)"""
 
     @abstractmethod
     def _parse_initial_settings(self) -> None:

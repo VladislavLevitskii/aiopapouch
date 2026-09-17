@@ -1,5 +1,6 @@
 """This file contains definition of the QuidoETH device."""
 
+import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
@@ -259,7 +260,9 @@ class QuidoETH(QuidoBase, HTTPMixin):
                     semantic_key = self._generate_semantic_key(self.PULSES, item_id)
 
                     val_str = element.attrib.get("cnt")
-                    parsed_data["counter"][item_id] = int(val_str) if val_str else None
+                    parsed_data["counter"][semantic_key] = (
+                        int(val_str) if val_str else None
+                    )
 
         return parsed_data
 
@@ -337,6 +340,8 @@ class QuidoETH(QuidoBase, HTTPMixin):
             xml_payload, f"{self.name} ({self.location})"
         )
         self._check_response(response, xml_payload)
+
+        await asyncio.sleep(15)
 
     @override
     async def _connect_all_coils(self) -> None:
@@ -681,6 +686,7 @@ class QuidoRS485(QuidoBase):
     @override
     async def switch_to_web_mode(self) -> None:
         """Unused in QuidoRS485."""
+        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
 
     @override
     async def _connect_all_coils(self) -> None:
