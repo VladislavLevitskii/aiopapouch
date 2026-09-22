@@ -11,20 +11,21 @@ import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
 from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
-from .base import PapouchConfiguration, PapouchDevice, find_tag
+from ..utils import find_tag
+from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
 TEMP_MULTIPLICATIVE_CONST = 10
 
 
 @dataclass
-class TMEConfiguration(PapouchConfiguration):
+class TMEConfiguration(PapouchNetworkConfiguration):
     """Configuration for TME."""
 
     sensors: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
-class TMEBase(PapouchDevice, ABC):
+class TMEBase(PapouchNetworkDevice, ABC):
     """Represents devices of TME family."""
 
     @override
@@ -35,7 +36,7 @@ class TMEBase(PapouchDevice, ABC):
     def __init__(self, api_client: PapouchHTTPClient, info: str, settings: str) -> None:
         """Constructor for TME device."""
 
-        self.api_client = cast(PapouchHTTPClient, api_client)
+        self.api_client = api_client
 
         self.info_root = defused_ET.fromstring(info)
         self.settings_root = defused_ET.fromstring(settings)
@@ -54,8 +55,9 @@ class TMEBase(PapouchDevice, ABC):
         self._parse_initial_settings()
 
     @override
-    async def parse_fresh_data(self, xml_data: str) -> dict:
+    async def get_fresh_data(self) -> dict:
         """Parse fresh data. Extracts global unit and delegates to specific parsers."""
+        xml_data = await self.api_client.fetch_data()
         root = defused_ET.fromstring(xml_data)
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
@@ -102,7 +104,7 @@ class TMEBase(PapouchDevice, ABC):
 
         raise DeviceParseError(
             f"The device doesn't have a MAC address in settings.xml nor fresh.xml, "
-            f"device: {self.context}"
+            f"device: {self.conf.context}"
         )
 
     @override
@@ -165,36 +167,50 @@ class TMEBase(PapouchDevice, ABC):
     @override
     async def execute_button_command(self, cmd_type: str) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     def _parse_initial_settings(self) -> None:
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
 
 class TME(TMEBase):
@@ -233,13 +249,15 @@ class TME(TMEBase):
                 parsed_data["sensor"][semantic_key] = float(value) / 10.0
             except ValueError as err:
                 raise DeviceParseError(
-                    f"{self.context} returned an error while parsing value: '{value}' from sensor"
+                    f"{self.conf.context} returned an error while parsing value: '{value}' from sensor"
                 ) from err
 
     @override
     async def switch_to_web_mode(self) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
 
 class TMERadioMulti(TMEBase):
@@ -336,7 +354,7 @@ class TMERadioMulti(TMEBase):
         box = self.settings_root.find(".//set[@box='1']")
         if box is None:
             raise DeviceParseError(
-                f"Box for network mode is not found, in the device: {self.context}"
+                f"Box for network mode is not found, in the device: {self.conf.context}"
             )
 
         def pad_ip(ip_str: str) -> str:
@@ -362,7 +380,7 @@ class TMERadioMulti(TMEBase):
 
         xml_payload = ET.tostring(save_root, encoding="unicode")
         response = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})"
+            xml_payload, f"{self.conf.name} ({self.conf.location})"
         )
 
         self._check_sensor_response(response, "2", "setting to WEB mode")
@@ -378,19 +396,19 @@ class TMERadioMulti(TMEBase):
 
             if result_tag is None:
                 raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.context}"
+                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
                 )
 
             if result_tag.attrib.get("status") != expected_status:
                 raise DeviceResponseError(
-                    f"{self.context} returned an error while {action_msg}, whole response: {response_text}"
+                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
                 )
 
             return int(result_tag.attrib.get("typesens", "0"))
 
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.context}"
+                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
             ) from exception
 
 

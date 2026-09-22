@@ -2,73 +2,97 @@
 
 Before reading this documentation, we strongly suggest you read the [README](../README.md) as it provides the big picture of the library. This section focuses on the concrete implementation details.
 
-## PapouchDevice
+## Architecture & Device Hierarchy
 
-This section describes the nuances every programmer should know about the base class of the devices.
+This section describes the core architecture of the library, specifically how device logic and transport mechanisms are cleanly separated.
 
-### Mixins
+### Transport Layers
 
-Every network device inherits from `HTTPMixin`, which allows us to reduce repeating code and keep network-specific logic out of serial devices. Specifically, it contains `_send_command` that creates a REST query and uses an HTTP client to send it, and `_check_response` that controls the return status of the request.
+Instead of using generic mixins, the library strictly enforces the transport layer at the base class level. `PapouchDevice` is the absolute abstract root, but concrete devices must inherit from one of its two primary transport branches:
 
-`HttpMixinHost` is nothing more than a Mypy helper.
+* **`PapouchNetworkDevice`**: Provides HTTP-specific logic (e.g., `_send_command` mapped to `SET.XML`, response checking).
+* **`PapouchSerialDevice`**: Provides RS485-specific logic.
+
+### Cooperative Multiple Inheritance (The Diamond Pattern)
+
+Some device families, such as **Quido**, exist in both Ethernet and RS485 variants. To keep the codebase DRY and fully type-safe, the library utilizes Python's cooperative multiple inheritance to solve the **Diamond Problem** efficiently.
+
+Instead of duplicating code or relying on untyped mixins, complex devices are built using composition:
+
+1. **Logic Base:** A class like `QuidoBase` contains solely the device's internal logic (counters, inputs, outputs, parsing rules). It does not know how it communicates.
+2. **Transport Base:** `PapouchNetworkDevice` or `PapouchSerialDevice` provides the communication methods.
+3. **Final Device:** `QuidoRS485` inherits from **both** `QuidoBase` and `PapouchSerialDevice`.
+
+This forms a classic diamond inheritance structure, terminating at the root `PapouchDevice`. Python handles this seamlessly using its **C3 Linearization (Method Resolution Order - MRO)**, ensuring the root class is initialized only once.
+
+> **Note on Type-Safety:** When composing devices this way, Mypy requires explicit type narrowing. The final subclass (e.g., `QuidoRS485`) must override the `conf` property to return the specific combined dataclass (e.g., `QuidoSerialConfiguration`), ensuring statical analysis knows both device-specific parameters and transport parameters (like `address`) are safely available.
 
 ### Configuration
 
-`PapouchDevice` provides various properties (e.g., name, location, context, etc.), but all of these properties are structured within the base dataclass `PapouchConfiguration`. Specific devices extend this dataclass to include their unique properties (e.g., sensors). It is strongly advised to return properties directly from the configuration, as Home Assistant (HA) can manipulate the configuration directly. For example, HA can change the identifier from a serial number to a MAC address when changing the device mode to a TCP server.
+`PapouchDevice` provides fundamental properties (e.g., name, location, context), but all structured data is held within the base dataclass `PapouchConfiguration`.
+
+Just like the device classes, configurations are split into transport branches:
+
+* **`PapouchNetworkConfiguration`**: For HTTP devices.
+* **`PapouchSerialConfiguration`**: Adds the required `address` field.
+
+Specific devices extend these dataclasses. For devices using the Diamond Pattern (like Quido), the configuration dataclasses also use multiple inheritance (e.g., `QuidoSerialConfiguration` inherits from both `QuidoConfiguration` and `PapouchSerialConfiguration`). Python's `@dataclass` automatically merges these fields correctly based on the MRO.
+
+It is strongly advised to return properties directly from the configuration, as Home Assistant (HA) can manipulate the configuration directly (e.g., changing the identifier from a serial number to a MAC address when changing the device mode to a TCP server).
 
 ### Constants / Unit Map
 
-Since almost every device uses various types of sensors, it was decided to create a universal map of units, type mappings, and sensor/counter types.
+Since almost every device uses various types of sensors, the library implements a universal map of units, type mappings, and sensor/counter types inside the base class.
 
-The library also provides methods to work with these maps. `_get_unit` is the most important one, it looks into the map and returns the unit in its text representation. Usage:
+The library provides methods to work with these maps. `_get_unit` looks into the map and returns the unit in its text representation. Usage:
 
 ```python
-self._conf.unit = self._get_unit(self.TEMPERATURE_SNS_TYPE, "0")
+self.conf.unit = self._get_unit(self.TEMPERATURE_SNS_TYPE, "0")
 
 ```
 
 The code above returns the first unit in the temperature block ("°C").
 
-The second method is `_generate_semantic_key`, used for creating a key for the parsed data to improve readability. The method simply uses the `...SNS_TYPE` constants to retrieve their text representation.
+The second method is `_generate_semantic_key`, used for creating a standardized key for the parsed data to improve readability. The method uses the `...SNS_TYPE` constants to retrieve their text representation.
 
-> **Note**: Some devices may send different indices for the sensor map (e.g., for some devices, "3" means "co2" and not "dew_point"). That means you must map it back to the universal constants. Also, the units from the devices are not standardized at all (e.g., you might receive "C" instead of "0" for Celsius).
-
-### Fetching the Data
-
-Please note that `parse_fresh_data` in serial devices will actively fetch the data, whereas network devices expect the already fetched data via the `xml_data` argument.
+> **Note**: Some devices may send different indices for the sensor map (e.g., for some devices, "3" means "co2" and not "dew_point"). That means you must map it back to the universal constants manually. Also, the units sent by the hardware are not standardized (e.g., receiving "C" instead of "0" for Celsius).
 
 ## Clients
 
-This section describes minor details about both clients. Both are designed for easier usage at the expense of the single-responsibility principle. This is done to keep context-related code together.
+Both clients are designed for easier usage at the expense of the single-responsibility principle. This design choice keeps context-related code centralized.
 
 ### HTTP
 
-`PapouchHTTPClient` is not just a simple HTTP client, it handles more functionality than a standard client should. The client holds context about the devices, meaning it provides methods for fetching specific data (fresh data, info, settings, device mode) and retrieving particular pieces of it.
+`PapouchHTTPClient` handles more functionality than a standard HTTP client. It holds device context and provides dedicated methods for fetching specific XML data chunks (fresh data, info, settings, device mode) and retrieving particular pieces of it.
 
-> **Note**: Don't forget about `get_device_mode`, this method is used in retrieving device mode of the device and some of them does **NOT** have the proper tag (it is not standardized), so you will need to include these devices in the exception list.
+> **Note**: Pay special attention to `get_device_mode`. This method retrieves the device mode, but some hardware does **NOT** use the proper standard tags. You will need to handle these exceptions directly in the client parsing logic.
 
 ### Serial
 
-The same applies to `PapouchSerialClient`. It is a wrapper around `SpinelClient` from the `pap_spinel` library and has standard transport methods (`open`/`close`), as well as device-related methods (fetching manufacturing data, location, setting the address, etc.).
+`PapouchSerialClient` wraps the `SpinelClient` from the external `pap_spinel` library. It includes standard transport methods (`open`/`close`) and high-level, device-related operations (fetching manufacturing data, location, setting the address).
+
+Since `aiopapouch` does not provide high-level abstractions for every edge-case tool a device might have, you can use the low-level `write_command` method. It returns a `SpinelPacket` (Format 97), allowing direct access to the raw payload bytes via the `data` property.
 
 ### Context
 
-Since every device provides a `context` property, it is heavily used in the communication methods of the clients. This is utilized to include the context of the problem within exceptions. For example, exceptions will automatically provide the identifier and name of the device that threw them.
+Every device configuration holds a `context` property heavily utilized in the communication methods of the clients. This is used to append descriptive device context to exceptions. For example, exceptions will automatically provide the identifier and name of the hardware that caused the failure, preventing ambiguous crash logs.
 
 ## Converters
 
-This section is straightforward, don't use converters at all unless you need somehow to distinguish between converters and network devices using only IP address. Converters are created in Home Assistant primarily for UX purposes and delegate the responsibility of resolving the converter mode to this library.
+Do not use converters directly unless you specifically need to distinguish between dedicated converters (like GNOME/Edgar) and standard network devices using only an IP address. Converters are implemented primarily for Home Assistant UX purposes, delegating the responsibility of resolving the converter mode down to this library.
 
 ## Creating the Devices
 
-The library provides two functions to create a serial or network device. Both are async and fetch the initial data required to create the proper configuration.
+The library provides two async factory functions: `create_network_device` and `create_serial_device`. Both fetch the initial data required to instantiate the device with a fully populated configuration.
 
-The backbone of these functions are **device handlers**—dictionaries where keys represent the type of communication (network/serial) and values are async factory lambdas for the concrete devices.
-
-These handlers are also used to deduce whether a particular device is supported. The function tries to match a handler key within the device name.
+The backbone of these functions are **device handlers**—internal dictionaries mapping string keys to async factory lambdas for concrete devices. These handlers deduce whether a particular device is supported by matching a handler key against the fetched device name.
 
 ## Adding a New Device
 
-The first thing you should do is create a new async factory for your device. The device class itself must inherit from `PapouchDevice`. Then, include that factory function in the handler or create a new handler with the proper key (type).
+To implement a new device:
 
-We strongly advise you to look at the existing implementation of some devices as an example (e.g., [tqs4.py](../src/aiopapouch/devices/tqs4.py)).
+1. Create a new async factory for your device.
+2. The device class itself must inherit from either `PapouchNetworkDevice` or `PapouchSerialDevice` (or use the cooperative multiple inheritance pattern if it belongs to a dual-transport family).
+3. Include that factory function in the appropriate handler dictionary, or create a new handler entry with the matching string key.
+
+Review the existing implementation of simple devices (e.g., [tqs4.py](../src/aiopapouch/devices/tqs4.py)) and complex devices (e.g., [quido.py](../src/aiopapouch/devices/quido.py)) as templates.

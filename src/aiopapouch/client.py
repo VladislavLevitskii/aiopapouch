@@ -168,7 +168,7 @@ class PapouchHTTPClient:
         Data contains the POST payload that will be sent in the request body.
         Context is a information about the device:
 
-        e.g. f"{self.name} ({self.location})"
+        e.g. f"{self.conf.name} ({self.conf.location})"
 
         Return response text.
         """

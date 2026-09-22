@@ -22,7 +22,8 @@ from ..client import (
     UDP_MODE_INDEX,
     PapouchHTTPClient,
 )
-from .base import PapouchConfiguration, find_tag
+from ..utils import find_tag
+from .base import PapouchConfiguration
 
 _LOGGER = logging.getLogger()
 

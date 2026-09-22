@@ -8,7 +8,7 @@ from aiopapouch.exceptions import DeviceConnectionError
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..utils import parse_device_location, parse_device_name, parse_device_serial_number
-from .base import PapouchDevice
+from .base import PapouchDevice, PapouchNetworkDevice, PapouchSerialDevice
 from .converters import (
     PapouchHTTPConverter,
     async_setup_converter_edgar,
@@ -108,7 +108,9 @@ def is_converter_supported(converter_name: str | None) -> bool:
     return _get_converter_handler(converter_name) is not None
 
 
-async def create_network_device(api_client: PapouchHTTPClient) -> PapouchDevice | None:
+async def create_network_device(
+    api_client: PapouchHTTPClient,
+) -> PapouchNetworkDevice | None:
     """Create a proper device instance dynamically based on the fetched info.
 
     Returns None if the device is not supported.
@@ -146,7 +148,7 @@ async def create_converter(
 
 async def create_serial_device(
     api_client: PapouchSerialClient, address: int
-) -> PapouchDevice | None:
+) -> PapouchSerialDevice | None:
     """Create a proper serial device instance dynamically based on the fetched info.
 
     Returns None if the device is not supported.

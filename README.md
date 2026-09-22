@@ -39,9 +39,9 @@ and these are devices that use serial communiction (RS485):
 
 ## Devices
 
-The library is designed using an object-oriented approach. Every device (or device family) is a subclass of `PapouchDevice`, which provides contract methods such as `parse_fresh_data`, `get_supported_sensors`, and properties like `name` and `identifier`. The `base.py` file also includes mixins (primarily for HTTP communication), as various network devices share the same functions. Creating an additional layer between `PapouchDevice` and the final subclasses is unnecessary since only a specific subset of functions needs to be included.
+The library is designed using an object-oriented approach. Every device (or device family) is a subclass of either `PapouchNetworkDevice` or `PapouchSerialDevice` (which both inherit from the abstract `PapouchDevice` core). This clear separation of the transport layer provides shared contract methods such as `get_fresh_data`, `get_supported_sensors`, and properties like `name` and `identifier`.
 
-Due to polymorphism, the `create_device` function returns an abstract `PapouchDevice`. It works in tandem with the `is_device_supported` function, which validates whether the hardware is supported by this library.
+Due to polymorphism, the factory functions `create_network_device` and `create_serial_device` return a generic `PapouchNetworkDevice` and `PapouchSerialDevice` respectively. This works in tandem with the `is_device_supported` function, which validates whether the hardware is supported by this library.
 
 > ***Note:*** The constructors are asynchronous (implementing the factory pattern). Creating any device instance utilizes the network/serial communication to download the initial configuration.
 
@@ -49,7 +49,7 @@ Due to polymorphism, the `create_device` function returns an abstract `PapouchDe
 
 > ***Note:*** Initial fresh fetch of data happens before the creation of the entities, making it a valid approach to generate configurations during/after the parsing of fresh data.
 
-> ***Note:*** While using the create_device factory function is the recommended approach for automatic hardware detection and initialization, specific device subclasses (e.g. QuidoETH, TH2E, THT2) can also be imported and instantiated directly if the exact device type is already known.
+> ***Note:*** While using the `create_network_device` or `create_serial_device` factory functions is the recommended approach for automatic hardware detection and initialization, specific device subclasses (e.g. `QuidoETH`, `TH2E`, `THT2`) can also be imported and instantiated directly if the exact device type is already known.
 
 ## API Client
 
@@ -70,7 +70,7 @@ If you want to communicate with the device that has extra functionality (e.g. TH
 
 Although `aiopapouch` is primarily designed to serve as the underlying library for the official Home Assistant Papouch integration, it can also be used independently in standalone Python scripts.
 
-The following example illustrates how to create a client, instantiate a device, fetch raw telemetry data, and pass it to `parse_fresh_data`:
+The following example illustrates how to create a client, instantiate a device and get parsed fresh data using `get_fresh_data`:
 
 ```python
 import asyncio
@@ -103,17 +103,14 @@ async def main():
             print("Device not supported or connection failed.")
             return
 
-        print(f"Connected to: {device.name} at {device.location}")
+        print(f"Connected to: {device.conf.name} at {device.conf.location}")
 
         # Option B: Direct instantiation if the device model is known beforehand
         # settings_xml = await client.fetch_settings()
         # device = PapagoETH_1TH_2DI_1DO(client, settings_xml, device_name="Papago ETH 1HT 2DI DO", location="Rack 1")
 
-        # Fetch raw fresh XML data from the device
-        raw_fresh_xml = await client.fetch_data()
-
         # Parse fresh data to update device state and return processed readings
-        parsed_data = await device.parse_fresh_data(raw_fresh_xml)
+        parsed_data = await device.get_fresh_data()
         print("Parsed telemetry data:", parsed_data)
 
 if __name__ == "__main__":
@@ -154,11 +151,11 @@ async def main():
 
     try:
         device = await create_serial_device(api_client = client, address = 0)
-        data = await device.parse_fresh_data()
+        data = await device.get_fresh_data()
         print(data)
         # {'sensor': {'temperature_1': 27.1, 'humidity_2': 45.8, 'dew_point_3': 14.4}}
 
-        print(f"Name: {device.name}, location: {device.location}, serial number: {device.identifier}")
+        print(f"Name: {device.conf.name}, location: {device.conf.location}, serial number: {device.conf.identifier}")
         # Name: THT2, location: Workspace, serial number: 0523/19559
 
     finally:
@@ -197,14 +194,14 @@ For a complete list of available methods and properties, please refer to the doc
 ```python
 import asyncio
 import aiohttp
-from aiopapouch import PapouchHTTPClient, create_device
+from aiopapouch import PapouchHTTPClient, create_network_device
 
 async def main():
     # Initialize the aiohttp client session
     async with aiohttp.ClientSession() as session:
         # Initialize the API transport client
         client = PapouchHTTPClient("192.168.1.100", session)
-        device = await create_device(client)
+        device = await create_network_device(client)
 
         if device is None:
             return

@@ -14,7 +14,8 @@ from ..exceptions import (
     DeviceParseError,
     DeviceResponseError,
 )
-from .base import HTTPMixin, PapouchConfiguration, PapouchDevice, find_tag
+from ..utils import find_tag
+from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class OutputSettings:
 
 
 @dataclass
-class PapagoConfiguration(PapouchConfiguration):
+class PapagoConfiguration(PapouchNetworkConfiguration):
     """Configuration for Papago devices."""
 
     size_counter_bits: int = 32
@@ -51,7 +52,7 @@ class PapagoConfiguration(PapouchConfiguration):
     sensors_types: dict[str, str] = field(default_factory=dict)
 
 
-class PapagoETH(PapouchDevice, HTTPMixin, ABC):
+class PapagoETH(PapouchNetworkDevice, ABC):
     """Represents Papago device family.
 
     Note that it uses unified code that
@@ -84,7 +85,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         super().__init__()
 
-        self.api_client = cast(PapouchHTTPClient, api_client)
+        self.api_client = api_client
         self.settings_root = defused_ET.fromstring(settings)
 
         _mac_address = self._get_identifier()
@@ -100,7 +101,8 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         self._parse_initial_settings()
 
     @override
-    async def parse_fresh_data(self, xml_data: str) -> dict:
+    async def get_fresh_data(self) -> dict:
+        xml_data = await self.api_client.fetch_data()
         root = defused_ET.fromstring(xml_data)
 
         parsed_data: dict[str, dict[str, Any]] = {
@@ -405,7 +407,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         payload = f'<root><set box="98" num01="{result_id}" /></root>'
 
         response = await self.api_client.write_command(
-            payload, f"{self.name} ({self.location})", SAVE_SETTINGS_ENDPOINT
+            payload, f"{self.conf.name} ({self.conf.location})", SAVE_SETTINGS_ENDPOINT
         )
 
         if not response:
@@ -522,7 +524,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     async def _save_setting(self, xml_payload: str) -> None:
         resp_start = await self.api_client.write_command(
             '<root><set box="0" /></root>',
-            f"{self.name} ({self.location})",
+            f"{self.conf.name} ({self.conf.location})",
             SAVE_SETTINGS_ENDPOINT,
         )
 
@@ -533,7 +535,9 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
         )
 
         resp_data = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})", SAVE_SETTINGS_ENDPOINT
+            xml_payload,
+            f"{self.conf.name} ({self.conf.location})",
+            SAVE_SETTINGS_ENDPOINT,
         )
 
         self._check_sensor_response(
@@ -542,7 +546,7 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
 
         resp_save = await self.api_client.write_command(
             '<root><set box="99" /></root>',
-            f"{self.name} ({self.location})",
+            f"{self.conf.name} ({self.conf.location})",
             SAVE_SETTINGS_ENDPOINT,
         )
         self._check_sensor_response(
@@ -664,7 +668,9 @@ class PapagoETH(PapouchDevice, HTTPMixin, ABC):
     @override
     async def switch_to_web_mode(self) -> None:
         """Unused in Papago."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     def _parse_initial_settings(self) -> None:

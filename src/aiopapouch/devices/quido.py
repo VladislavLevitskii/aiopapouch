@@ -5,14 +5,24 @@ import logging
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, cast, override
+from typing import Any, override
 
 import defusedxml.ElementTree as defused_ET
+
 from pap_spinel import ACK_FAILURE
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..exceptions import DeviceLogicError, DeviceParseError
-from .base import HTTPMixin, PapouchConfiguration, PapouchDevice, find_tag
+from ..utils import find_tag
+from .base import (
+    ClientT,
+    PapouchConfiguration,
+    PapouchDevice,
+    PapouchNetworkConfiguration,
+    PapouchNetworkDevice,
+    PapouchSerialConfiguration,
+    PapouchSerialDevice,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,21 +39,8 @@ class QuidoConfiguration(PapouchConfiguration):
     size_counter_bits: int = 16
 
 
-class QuidoBase(PapouchDevice, ABC):
+class QuidoBase(PapouchDevice[ClientT], ABC):
     """Base class for all Quido devices containing shared entity logic."""
-
-    def __init__(self) -> None:
-        """Constructor for the base of the Quido."""
-
-        # That configuration should be populated by the subclasses:
-        self._conf = QuidoConfiguration()
-
-    # These methods are the same for every Quido device:
-
-    @override
-    @property
-    def conf(self) -> QuidoConfiguration:
-        return self._conf
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
@@ -155,7 +152,7 @@ class QuidoBase(PapouchDevice, ABC):
                 await self._reset_all_counters()
             case _:
                 raise DeviceLogicError(
-                    f"Unsupported command: {cmd_type}, in the device: {self.name} ({self.location})"
+                    f"Unsupported command: {cmd_type}, in the device: {self.conf.name} ({self.conf.location})"
                 )
 
     @override
@@ -169,6 +166,11 @@ class QuidoBase(PapouchDevice, ABC):
         await self._turn_off_coil(item_id)
 
     # These are the methods all of the children should implement
+
+    @property
+    @abstractmethod
+    def conf(self) -> QuidoConfiguration:
+        pass
 
     @abstractmethod
     async def _connect_all_coils(self) -> None:
@@ -195,16 +197,19 @@ class QuidoBase(PapouchDevice, ABC):
         pass
 
 
-class QuidoETH(QuidoBase, HTTPMixin):
-    """Represents devices of Quido family."""
+@dataclass
+class QuidoNetworkConfiguration(QuidoConfiguration, PapouchNetworkConfiguration):
+    """Configuration dataclass for serial quido."""
 
-    api_client: PapouchHTTPClient
+
+class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
+    """Represents devices of Quido family."""
 
     def __init__(self, api_client: PapouchHTTPClient, settings: str, info: str) -> None:
         """Constructor for Quido device."""
 
         super().__init__()
-        self.api_client = cast(PapouchHTTPClient, api_client)
+        self.api_client = api_client
 
         self.info_root = defused_ET.fromstring(info)
         self.settings_root = defused_ET.fromstring(settings)
@@ -215,15 +220,21 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
         context = f"{name} ({location}) - {self.api_client.ip_address}"
 
-        self._conf = QuidoConfiguration(
+        self._conf = QuidoNetworkConfiguration(
             name=name, location=location, identifier=mac_address, context=context
         )
 
         self._parse_initial_settings()
 
+    @property
     @override
-    async def parse_fresh_data(self, xml_data: str) -> dict:
+    def conf(self) -> QuidoNetworkConfiguration:
+        return self._conf
+
+    @override
+    async def get_fresh_data(self) -> dict:
         """Defines parser method for QuidoETH."""
+        xml_data = await self.api_client.fetch_data()
         root = defused_ET.fromstring(xml_data)
         parsed_data: dict[str, dict[str, Any]] = {
             "temperature": {},
@@ -337,7 +348,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
 
         xml_payload = ET.tostring(save_root, encoding="unicode")
         response = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})"
+            xml_payload, f"{self.conf.name} ({self.conf.location})"
         )
         self._check_response(response, xml_payload)
 
@@ -413,7 +424,7 @@ class QuidoETH(QuidoBase, HTTPMixin):
         xml_payload = ET.tostring(save_root, encoding="unicode")
 
         response = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})"
+            xml_payload, f"{self.conf.name} ({self.conf.location})"
         )
         self._check_response(response, xml_payload)
 
@@ -506,16 +517,18 @@ class QuidoETH(QuidoBase, HTTPMixin):
         await self._send_command("r", item_id)
 
 
-class QuidoRS485(QuidoBase):
-    """Represents serial Quido."""
+@dataclass
+class QuidoSerialConfiguration(QuidoConfiguration, PapouchSerialConfiguration):
+    """Configuration dataclass for serial quido."""
 
-    api_client: PapouchSerialClient
+
+class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
+    """Represents serial Quido."""
 
     def __init__(
         self,
         api_client: PapouchSerialClient,
-        address: int,
-        configuration: QuidoConfiguration,
+        configuration: QuidoSerialConfiguration,
     ) -> None:
         """Constructor for Quido device."""
 
@@ -523,11 +536,9 @@ class QuidoRS485(QuidoBase):
         self.api_client = api_client
         self._conf = configuration
 
-        self.address = address
-
     async def _get_state_coils(self) -> dict:
         result_pkt = await self.api_client.write_command(
-            self.address, 0x30, self.conf.context
+            self.conf.address, 0x30, self.conf.context
         )
         result_int = int.from_bytes(result_pkt.data)
 
@@ -541,7 +552,7 @@ class QuidoRS485(QuidoBase):
 
     async def _get_inputs(self) -> dict:
         result_pkt = await self.api_client.write_command(
-            self.address, 0x31, self.conf.context
+            self.conf.address, 0x31, self.conf.context
         )
         result_int = int.from_bytes(result_pkt.data)
 
@@ -555,7 +566,7 @@ class QuidoRS485(QuidoBase):
 
     async def _get_temp(self) -> float | None:
         result_pkt = await self.api_client.write_command(
-            self.address, 0x51, self.conf.context, b"\x01"
+            self.conf.address, 0x51, self.conf.context, b"\x01"
         )
 
         # for some reason if there is no temp sensor it returns ACK 5
@@ -571,7 +582,7 @@ class QuidoRS485(QuidoBase):
         result: dict = {}
 
         result_pkt = await self.api_client.write_command(
-            self.address, 0x60, self.conf.context, b"\x00"
+            self.conf.address, 0x60, self.conf.context, b"\x00"
         )
 
         bits = result_pkt.data[0]
@@ -587,8 +598,13 @@ class QuidoRS485(QuidoBase):
 
         return result
 
+    @property
     @override
-    async def parse_fresh_data(self, xml_data: str) -> dict:
+    def conf(self) -> QuidoSerialConfiguration:
+        return self._conf
+
+    @override
+    async def get_fresh_data(self) -> dict:
         parsed_data: dict[str, dict[str, Any]] = {
             "temperature": {},
             "input": {},
@@ -618,7 +634,7 @@ class QuidoRS485(QuidoBase):
         payload = result_int.to_bytes(1)
 
         await self.api_client.write_command(
-            self.address, 0x6A, self.conf.context, payload
+            self.conf.address, 0x6A, self.conf.context, payload
         )
         self.conf.counter_states[item_id] = mode
 
@@ -644,7 +660,7 @@ class QuidoRS485(QuidoBase):
     async def _decrease_value_counter(self, item_id: str, value: int) -> None:
         payload = int(item_id).to_bytes(1) + value.to_bytes(2)
         response = await self.api_client.write_command(
-            self.address, 0x61, self.conf.context, payload
+            self.conf.address, 0x61, self.conf.context, payload
         )
 
         ack_code = response.ack_code()
@@ -675,7 +691,7 @@ class QuidoRS485(QuidoBase):
                 payload = time_units.to_bytes(1) + set_byte.to_bytes(1)
 
                 await self.api_client.write_command(
-                    self.address, 0x23, self.conf.context, payload
+                    self.conf.address, 0x23, self.conf.context, payload
                 )
 
             case _:
@@ -686,7 +702,9 @@ class QuidoRS485(QuidoBase):
     @override
     async def switch_to_web_mode(self) -> None:
         """Unused in QuidoRS485."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def _connect_all_coils(self) -> None:
@@ -723,7 +741,7 @@ class QuidoRS485(QuidoBase):
 
             if payload:
                 await self.api_client.write_command(
-                    self.address, 0x61, self.conf.context, bytes(payload)
+                    self.conf.address, 0x61, self.conf.context, bytes(payload)
                 )
 
     @override
@@ -731,7 +749,7 @@ class QuidoRS485(QuidoBase):
         output_num = int(item_id)
         payload = (0x80 | output_num).to_bytes(1)
         await self.api_client.write_command(
-            self.address, 0x20, self.conf.context, payload
+            self.conf.address, 0x20, self.conf.context, payload
         )
 
     @override
@@ -739,13 +757,15 @@ class QuidoRS485(QuidoBase):
         output_num = int(item_id)
         payload = output_num.to_bytes(1, "big")
         await self.api_client.write_command(
-            self.address, 0x20, self.conf.context, payload
+            self.conf.address, 0x20, self.conf.context, payload
         )
 
     @override
     def _parse_initial_settings(self) -> None:
         """Unused."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @staticmethod
     async def get_number_io(
@@ -760,13 +780,12 @@ class QuidoRS485(QuidoBase):
     @staticmethod
     async def get_modes_counters(
         api_client: PapouchSerialClient,
-        address: int,
-        conf: QuidoConfiguration,
+        conf: QuidoSerialConfiguration,
     ) -> None:
         """Assignes proper mode of the counters in the configuration."""
 
         result_pkt = await api_client.write_command(
-            address, 0x6B, conf.context, b"\x00"
+            conf.address, 0x6B, conf.context, b"\x00"
         )
 
         result_data_bytes = result_pkt.data
@@ -779,7 +798,9 @@ class QuidoRS485(QuidoBase):
             conf.counter_states[str(i)] = QuidoBase.COUNTER_MODES[mode]
 
 
-async def async_setup_network_quido(client: PapouchHTTPClient) -> QuidoBase | None:
+async def async_setup_network_quido(
+    client: PapouchHTTPClient,
+) -> QuidoETH:
     """Async factory for network Quido."""
     settings = await client.fetch_settings()
     info = await client.fetch_info()
@@ -792,7 +813,7 @@ async def async_setup_serial_quido(
     serial_number: str,
     device_name: str,
     location: str,
-) -> QuidoBase | None:
+) -> QuidoRS485:
     """Async factory for serial Quido."""
 
     context = f"{device_name} - SN: {serial_number}"
@@ -801,15 +822,16 @@ async def async_setup_serial_quido(
         client, address, context
     )
 
-    configuration = QuidoConfiguration(
+    configuration = QuidoSerialConfiguration(
         number_inputs=number_inputs,
         number_outputs=number_outputs,
         location=location,
         name=device_name,
         identifier=serial_number,
         context=context,
+        address=address,
     )
 
-    await QuidoRS485.get_modes_counters(client, address, configuration)
+    await QuidoRS485.get_modes_counters(client, configuration)
 
-    return QuidoRS485(client, address, configuration)
+    return QuidoRS485(client, configuration)

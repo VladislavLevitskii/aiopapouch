@@ -1,92 +1,24 @@
 """File contains base classes that define Papouch devices."""
 
-import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, ClassVar, Protocol
+from typing import Any, ClassVar, Generic, TypeVar
 
 import defusedxml.ElementTree as defused_ET
 
-from aiopapouch.client import PapouchHTTPClient
+from aiopapouch.client import PapouchHTTPClient, PapouchSerialClient
 from aiopapouch.exceptions import DeviceLogicError, DeviceResponseError
+
+from ..utils import find_tag
 
 ERROR_STATUS = "0"
 
 
-def find_tag(root: ET.Element, tag_name: str) -> ET.Element | None:
-    """Find element and ignore the namespace."""
-    for element in root.iter():
-        if element.tag.endswith(tag_name):
-            return element
-    return None
-
-
-class HttpMixinHost(Protocol):
-    """Defines protocol which tells what methods/variables should have a class that uses that protocol. Used for mixin HTTPMixin."""
-
-    @property
-    def name(self) -> str:
-        """Get the name of the device. MixinHost."""
-
-    @property
-    def location(self) -> str:
-        """Get the location of the device. MixinHost."""
-
-    @property
-    def context(self) -> str:
-        """Required context property."""
-
-    api_client: PapouchHTTPClient
-
-
-class HTTPMixin(HttpMixinHost):
-    """Mixin for ETH devices for sending command and checking its response."""
-
-    async def _send_command(
-        self,
-        cmd_type: str,
-        item_id: str | None = None,
-        counter: str | None = None,
-        time: str | None = None,
-        value: str | None = None,
-    ) -> None:
-        """Send command via network on SET.XML. Parameters will be used in a query."""
-
-        raw_params = {
-            "type": cmd_type,
-            "id": item_id,
-            "cnt": counter,
-            "time": time,
-            "val": value,
-        }
-        params = {key: value for key, value in raw_params.items() if value is not None}
-
-        response = await self.api_client.read_command(params, self.context)
-
-        self._check_response(response, str(params))
-
-    def _check_response(self, response_text: str, request_text: str) -> None:
-        """Check the response of the requests."""
-
-        root = defused_ET.fromstring(response_text)
-        result_tag = find_tag(root, "result")
-
-        if result_tag is not None:
-            status = result_tag.attrib.get("status")
-
-            if status == ERROR_STATUS:
-                raise DeviceResponseError(
-                    f"{self.context} returned an error, "
-                    f"whole response: {response_text} and whole request text: {request_text}"
-                )
-        else:
-            raise DeviceResponseError(
-                f"Response doesn't have the result tag! In the device: {self.context}"
-            )
+ClientT = TypeVar("ClientT", PapouchHTTPClient, PapouchSerialClient)
 
 
 @dataclass
-class PapouchConfiguration:
+class PapouchConfiguration(ABC):
     """Base configuration for all Papouch devices."""
 
     identifier: str = ""
@@ -96,11 +28,22 @@ class PapouchConfiguration:
     manufacturer: str = "Papouch s.r.o."
 
 
-class PapouchDevice(ABC):
-    """Abstract class for Papouch devices.
+@dataclass
+class PapouchSerialConfiguration(PapouchConfiguration):
+    """Configuration for all serial devices."""
 
-    Beware of the XML namespaces! Some devices can have some while other don't.
-    """
+    address: int = -1
+
+
+@dataclass
+class PapouchNetworkConfiguration(PapouchConfiguration):
+    """Configuration for all network devices."""
+
+
+class PapouchDevice(ABC, Generic[ClientT]):
+    """Abstract class for Papouch devices."""
+
+    api_client: ClientT
 
     COUNTER_MODES: ClassVar[list[str]] = [
         "off",
@@ -143,7 +86,7 @@ class PapouchDevice(ABC):
         SIGNAL_STRENGTH: "signal_strength",
     }
 
-    UNIT_MAP: ClassVar[dict] = {
+    UNIT_MAP: ClassVar[dict[str, dict[str, str]]] = {
         TEMPERATURE_SNS_TYPE: {"0": "°C", "1": "°F", "2": "K"},
         HUMIDITY_SNS_TYPE: {"0": "%"},
         DEW_POINT_SNS_TYPE: {
@@ -167,7 +110,7 @@ class PapouchDevice(ABC):
             return self.UNIT_MAP[sns_type][unit_code]
         except KeyError as err:
             raise DeviceLogicError(
-                f"Unknown unit, device {self.name} sent: '{sns_type}' "
+                f"Unknown unit, device {self.conf.name} sent: '{sns_type}' "
                 f"with code: '{unit_code}', that is missing in UNIT_MAP."
             ) from err
 
@@ -182,33 +125,8 @@ class PapouchDevice(ABC):
     def conf(self) -> PapouchConfiguration:
         """Return the device configuration."""
 
-    @property
-    def name(self) -> str:
-        """Return device's name."""
-        return self.conf.name
-
-    @property
-    def location(self) -> str:
-        """Return device's location."""
-        return self.conf.location
-
-    @property
-    def manufacturer(self) -> str:
-        """Return device's manufacturer."""
-        return self.conf.manufacturer
-
-    @property
-    def identifier(self) -> str:
-        """Return device's identifier."""
-        return self.conf.identifier
-
-    @property
-    def context(self) -> str:
-        """Return context of the device (its name, location and identifier, possibly other information)"""
-        return self.conf.context
-
     @abstractmethod
-    async def parse_fresh_data(self, xml_data: str) -> dict:
+    async def get_fresh_data(self) -> dict:
         """Parse the device-specific XML and return normalized data.
 
         The returned dictionary must map the parsed data to standard keys,
@@ -335,3 +253,63 @@ class PapouchDevice(ABC):
         Note that this is called only in ctor of the proper device
         and should be a private method.
         """
+
+
+class PapouchSerialDevice(PapouchDevice[PapouchSerialClient], ABC):
+    """Base class for serial devices."""
+
+    @property
+    @abstractmethod
+    def conf(self) -> PapouchSerialConfiguration:
+        """Configuration for serial devices"""
+
+
+class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
+    """Base class for network devices."""
+
+    @property
+    @abstractmethod
+    def conf(self) -> PapouchNetworkConfiguration:
+        """Configuration for serial devices"""
+
+    async def _send_command(
+        self,
+        cmd_type: str,
+        item_id: str | None = None,
+        counter: str | None = None,
+        time: str | None = None,
+        value: str | None = None,
+    ) -> None:
+        """Send command via network on SET.XML. Parameters will be used in a query."""
+
+        raw_params = {
+            "type": cmd_type,
+            "id": item_id,
+            "cnt": counter,
+            "time": time,
+            "val": value,
+        }
+        params = {key: value for key, value in raw_params.items() if value is not None}
+
+        response = await self.api_client.read_command(params, self.conf.context)
+
+        self._check_response(response, str(params))
+
+    def _check_response(self, response_text: str, request_text: str) -> None:
+        """Check the response of the requests."""
+
+        root = defused_ET.fromstring(response_text)
+        result_tag = find_tag(root, "result")
+
+        if result_tag is not None:
+            status = result_tag.attrib.get("status")
+
+            if status == ERROR_STATUS:
+                raise DeviceResponseError(
+                    f"{self.conf.context} returned an error, "
+                    f"whole response: {response_text} and whole request text: {request_text}"
+                )
+        else:
+            raise DeviceResponseError(
+                f"Response doesn't have the result tag! In the device: {self.conf.context}"
+            )

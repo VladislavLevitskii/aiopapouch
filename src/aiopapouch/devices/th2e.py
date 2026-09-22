@@ -10,20 +10,21 @@ import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
 from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
-from .base import HTTPMixin, PapouchConfiguration, PapouchDevice, find_tag
+from ..utils import find_tag
+from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class TH2EConfiguration(PapouchConfiguration):
+class TH2EConfiguration(PapouchNetworkConfiguration):
     """Configuration for TH2E."""
 
     sensors: dict[str, dict[str, str]] = field(default_factory=dict)
     sensor_type: int = 0
 
 
-class TH2E(PapouchDevice, HTTPMixin):
+class TH2E(PapouchNetworkDevice):
     """Represents TH2E device."""
 
     @property
@@ -36,7 +37,7 @@ class TH2E(PapouchDevice, HTTPMixin):
 
         super().__init__()
 
-        self.api_client = cast(PapouchHTTPClient, api_client)
+        self.api_client = api_client
 
         self.info_root = defused_ET.fromstring(info)
         self.settings_root = defused_ET.fromstring(settings)
@@ -53,12 +54,13 @@ class TH2E(PapouchDevice, HTTPMixin):
         )
 
     @override
-    async def parse_fresh_data(self, xml_data: str) -> dict:
+    async def get_fresh_data(self) -> dict:
         """Parse XML data into dictionary to feed the coordinator.
 
         Note that it also sets the type of the sensor. (Global one)
         """
 
+        xml_data = await self.api_client.fetch_data()
         root = defused_ET.fromstring(xml_data)
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
@@ -66,7 +68,7 @@ class TH2E(PapouchDevice, HTTPMixin):
 
         if status_tag is None:
             raise DeviceParseError(
-                f"The device doesn't have box status tag in fresh.xml, device: {self.context}"
+                f"The device doesn't have box status tag in fresh.xml, device: {self.conf.context}"
             )
 
         self.conf.sensor_type = int(status_tag.attrib.get("typesens", "0"))
@@ -129,7 +131,7 @@ class TH2E(PapouchDevice, HTTPMixin):
             return str(box.attrib.get("mac", ""))
 
         raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.context}"
+            f"The device doesn't have box 12 with MAC address, device: {self.conf.context}"
         )
 
     @override
@@ -187,7 +189,7 @@ class TH2E(PapouchDevice, HTTPMixin):
     async def execute_button_command(self, cmd_type: str) -> None:
         if cmd_type != "set_sensor":
             raise DeviceLogicError(
-                f"Unsupported command: {cmd_type}, in the device: {self.context}"
+                f"Unsupported command: {cmd_type}, in the device: {self.conf.context}"
             )
 
         self.conf.sensor_type = await self._get_sensor_type()
@@ -196,7 +198,7 @@ class TH2E(PapouchDevice, HTTPMixin):
     async def _get_sensor_type(self) -> int:
         request = '<root><set box="19" num1="00001" /></root>'
         response = await self.api_client.write_command(
-            request, f"{self.name} ({self.location})"
+            request, f"{self.conf.name} ({self.conf.location})"
         )
 
         return self._check_sensor_response(
@@ -212,7 +214,7 @@ class TH2E(PapouchDevice, HTTPMixin):
             settings_root = defused_ET.fromstring(settings)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid settings XML: {exception}, in the device: {self.context}"
+                f"Invalid settings XML: {exception}, in the device: {self.conf.context}"
             ) from exception
 
         def format_str_val(val: str) -> str:
@@ -271,7 +273,7 @@ class TH2E(PapouchDevice, HTTPMixin):
         xml_payload = ET.tostring(save_root, encoding="unicode")
 
         final_response = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})"
+            xml_payload, f"{self.conf.name} ({self.conf.location})"
         )
 
         self._check_sensor_response(
@@ -289,35 +291,41 @@ class TH2E(PapouchDevice, HTTPMixin):
 
             if result_tag is None:
                 raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.context}"
+                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
                 )
 
             if result_tag.attrib.get("status") != expected_status:
                 raise DeviceResponseError(
-                    f"{self.context} returned an error while {action_msg}, whole response: {response_text}"
+                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
                 )
 
             return int(result_tag.attrib.get("typesens", "0"))
 
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.context}"
+                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
             ) from exception
 
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Unused in TH2E."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Unused in TH2E."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         """Unused in TH2E."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
@@ -325,7 +333,7 @@ class TH2E(PapouchDevice, HTTPMixin):
             return self.SENSOR_TYPES[self.conf.sensor_type]
         else:
             raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.context}"
+                f"Unknown select category '{category}' requested for device: {self.conf.context}"
             )
 
     @override
@@ -340,7 +348,7 @@ class TH2E(PapouchDevice, HTTPMixin):
         box = self.settings_root.find(".//set[@box='1']")
         if box is None:
             raise DeviceParseError(
-                f"Box for network mode is not found, in the device: {self.context}"
+                f"Box for network mode is not found, in the device: {self.conf.context}"
             )
 
         def pad_ip(ip_str: str) -> str:
@@ -366,7 +374,7 @@ class TH2E(PapouchDevice, HTTPMixin):
 
         xml_payload = ET.tostring(save_root, encoding="unicode")
         response = await self.api_client.write_command(
-            xml_payload, f"{self.name} ({self.location})"
+            xml_payload, f"{self.conf.name} ({self.conf.location})"
         )
 
         self._check_sensor_response(response, "2", "setting to WEB mode")
@@ -375,10 +383,12 @@ class TH2E(PapouchDevice, HTTPMixin):
 
     @override
     def _parse_initial_settings(self) -> None:
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
 
-async def async_setup_network_th2e(client: PapouchHTTPClient) -> TH2E | None:
+async def async_setup_network_th2e(client: PapouchHTTPClient) -> TH2E:
     """Async factory for TH2E device."""
     settings = await client.fetch_settings()
     info = await client.fetch_info()

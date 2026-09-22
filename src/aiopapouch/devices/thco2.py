@@ -7,20 +7,19 @@ from typing import Any, override
 from aiopapouch.exceptions import DeviceLogicError, DeviceParseError
 
 from ..client import PapouchSerialClient
-from .base import PapouchConfiguration, PapouchDevice
+from .base import PapouchSerialConfiguration, PapouchSerialDevice
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class THCO2Configuration(PapouchConfiguration):
+class THCO2Configuration(PapouchSerialConfiguration):
     """Configuration for THCO2."""
 
-    address: int = 0
     sensors: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
-class THCO2(PapouchDevice):
+class THCO2(PapouchSerialDevice):
     """Represents TH2E device."""
 
     @override
@@ -109,7 +108,7 @@ class THCO2(PapouchDevice):
         return parsed_data
 
     @override
-    async def parse_fresh_data(self, xml_data: str = "") -> dict:
+    async def get_fresh_data(self) -> dict:
         """Fetch and parse fresh data."""
         raw_bytes = await self._update_data()
         return self._parse_raw_data(raw_bytes)
@@ -133,7 +132,12 @@ class THCO2(PapouchDevice):
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         sensors = []
 
-        VALID_SENSORS = [self.TEMPERATURE_SNS_TYPE, self.HUMIDITY_SNS_TYPE, self.DEW_POINT_SNS_TYPE, self.CO2_SNS_TYPE]
+        VALID_SENSORS = [
+            self.TEMPERATURE_SNS_TYPE,
+            self.HUMIDITY_SNS_TYPE,
+            self.DEW_POINT_SNS_TYPE,
+            self.CO2_SNS_TYPE,
+        ]
 
         for sns in self.conf.sensors.values():
             item_id = sns["id"]
@@ -145,7 +149,9 @@ class THCO2(PapouchDevice):
             if sns_type in VALID_SENSORS:
                 data_type = self.TYPE_MAPPING[sns_type]
             else:
-                raise DeviceLogicError(f"Invalid type of the sensor: {sns_type} in the {self.context}")
+                raise DeviceLogicError(
+                    f"Invalid type of the sensor: {sns_type} in the {self.conf.context}"
+                )
 
             sensors.append({
                 "item_id": item_id,
@@ -171,43 +177,59 @@ class THCO2(PapouchDevice):
     @override
     async def execute_button_command(self, cmd_type: str) -> None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
-
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     async def switch_to_web_mode(self) -> None:
         """THCO2 is a serial device."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
 
     @override
     def _parse_initial_settings(self) -> None:
         """Unused in THCO2."""
-        raise DeviceLogicError(f"Calling not implemented method in {self.context}.")
+        raise DeviceLogicError(
+            f"Calling not implemented method in {self.conf.context}."
+        )
+
 
 async def async_setup_serial_thco2(
     client: PapouchSerialClient,
