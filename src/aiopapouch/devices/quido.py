@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import Any, override
 
 import defusedxml.ElementTree as defused_ET
-
 from pap_spinel import ACK_FAILURE
 
 from ..client import PapouchHTTPClient, PapouchSerialClient

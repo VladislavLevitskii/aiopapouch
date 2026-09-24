@@ -2,12 +2,12 @@
 
 This repository contains an asynchronous Python I/O library for Papouch s.r.o. devices.
 
-The library provides two major components: **Devices** and **API Client** for communication with the hardware.
+The library provides major components: **Devices**, **API Clients**, and **Hubs** for managing multiple devices efficiently.
 
 ## Requirements
 
 * **Python 3.14+**: The library requires Python 3.14 or higher (PEP 758).
-* **aiohttp**: Required for handling asynchronous HTTP communication with the devices.
+* **aiohttp**: Required for handling asynchronous HTTP communication with the network devices.
 * **pap_spinel**: Required for serial communication.
 
 ## Installation
@@ -49,125 +49,144 @@ Due to polymorphism, the factory functions `create_network_device` and `create_s
 
 > ***Note:*** Initial fresh fetch of data happens before the creation of the entities, making it a valid approach to generate configurations during/after the parsing of fresh data.
 
-> ***Note:*** While using the `create_network_device` or `create_serial_device` factory functions is the recommended approach for automatic hardware detection and initialization, specific device subclasses (e.g. `QuidoETH`, `TH2E`, `THT2`) can also be imported and instantiated directly if the exact device type is already known.
+## Hubs (Recommended)
 
-## API Client
+When dealing with multiple devices, it is highly recommended to use **Hubs**. Hubs act as managers that group devices together, providing unified methods to concurrently fetch data (`get_fresh_data`) or verify device states (`check_health`).
 
-The library provides 2 major types of the communication: Network and Serial (via RS485).
+The library provides **3 types of Hubs** based on the transport layer:
 
-### Network
+1. **`NetworkHub`**: Used for IP-based devices (HTTP). It utilizes a single shared `aiohttp.ClientSession` to dynamically spawn and manage individual HTTP clients for each added IP address.
+2. **`SerialHub`**: Used for RS485-based devices. It takes a single shared `PapouchSerialClient` (since all devices share the same serial bus or TCP gateway) and manages devices by their hardware address or serial number.
+3. **`NetworkSpinelHub`**: Used for standalone network devices that communicate via the Spinel protocol directly over a TCP socket. Unlike `SerialHub`, this hub manages individual TCP connections for each registered IP address automatically.
 
-For communication via network you can use `PapouchHTTPClient` that handles communication over HTTP. If the hardware is protected by credentials or uses a non-standard port, you can provide the password and port arguments directly when initializing the client alongside the IP address:
+### Pythonic Features (Magic Methods & Context Managers)
 
-```python
-# Initialize the client with authentication and a custom port
-client = PapouchHTTPClient("192.168.1.100", session, password="my_secure_password", port=8080)
-```
+All hubs are designed to behave like standard Python collections. You can easily get the device count using `len(hub)`, check for existence with `device in hub`, or iterate directly over the hub using `for device in hub:`.
 
-If you want to communicate with the device that has extra functionality (e.g. TH2E has memory) you can send GET and POST methods using `read_command` and `write_command`.
+Furthermore, hubs handling persistent socket or serial connections (`SerialHub` and `NetworkSpinelHub`) support asynchronous context managers (`async with`), ensuring that all ports and connections are cleanly closed when the block is exited.
 
-#### Usage
+---
 
-Although `aiopapouch` is primarily designed to serve as the underlying library for the official Home Assistant Papouch integration, it can also be used independently in standalone Python scripts.
+## API Client & Usage
 
-The following example illustrates how to create a client, instantiate a device and get parsed fresh data using `get_fresh_data`:
+The library provides 2 major types of communication: Network and Serial (via RS485 or Spinel TCP). Although `aiopapouch` is primarily designed to serve as the underlying library for the official Home Assistant Papouch integration, it can also be used independently in standalone Python scripts.
+
+### 1. Network Usage Example (HTTP)
 
 ```python
 import asyncio
 import aiohttp
-from aiopapouch import PapouchHTTPClient, create_network_device
-from aiopapouch.exception import DeviceAuthError, DeviceConnectionError, DeviceParseError
-# Option B
-# from aiopapouch.devices.papago import PapagoETH_1TH_2DI_1DO
+from aiopapouch import NetworkHub
+from aiopapouch.exceptions import DeviceLogicError
 
 async def main():
-    # Initialize the aiohttp client session
+    # Initialize the shared aiohttp client session
     async with aiohttp.ClientSession() as session:
-        # Initialize the API transport client
-        client = PapouchHTTPClient("192.168.1.100", session)
+        hub = NetworkHub(session)
 
-        # Option A: Automatic detection via factory pattern (Recommended)
         try:
-            device = await create_network_device(client)
-        except DeviceConnectionError:
-            print("Failed to connect to the device.")
-            return
-        except DeviceAuthError:
-            print("Invalid credentials.")
-            return
-        except DeviceParseError:
-            print("Failed to parse device configuration.")
+            # Automatically create API clients and initialize devices by IP
+            await hub.create_and_add_device("192.168.1.100", password="admin")
+            await hub.create_and_add_device("192.168.1.101")
+        except DeviceLogicError as err:
+            print(f"Failed to add device: {err}")
             return
 
-        if device is None:
-            print("Device not supported or connection failed.")
-            return
+        # Check health of all devices concurrently
+        health_status = await hub.check_health()
+        print("Device health:", health_status)
 
-        print(f"Connected to: {device.conf.name} at {device.conf.location}")
-
-        # Option B: Direct instantiation if the device model is known beforehand
-        # settings_xml = await client.fetch_settings()
-        # device = PapagoETH_1TH_2DI_1DO(client, settings_xml, device_name="Papago ETH 1HT 2DI DO", location="Rack 1")
-
-        # Parse fresh data to update device state and return processed readings
-        parsed_data = await device.get_fresh_data()
+        # Parse fresh data concurrently from all devices
+        parsed_data = await hub.get_fresh_data()
         print("Parsed telemetry data:", parsed_data)
+
+        # Utilize pythonic magic methods for iteration and length
+        print(f"Currently managing {len(hub)} devices.")
+        for device in hub:
+            print(f"Device: {device.conf.name} - IP: {device.api_client.ip_address}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 
 ```
 
-### Serial RS485
+### 2. Network Spinel Usage Example (TCP)
 
-For serial communication you can use `PapouchSerialClient` that handles communication over RS485.
-
-> **Note**: Don't forget to give permissions to open/close port.
-
-The client can also resolve some data from the device without needing to know its exact type:
-
-`get_info`, `get_man_data` and `get_location`
-
-All you need is an address, but if you bought the device right now and you don't know the address, you can set it up using `set_address` method. All you need is a serial number.
-
-Of course the library doesn't provide all of the possible tools that the particular device can have, so you can communicate with it using `write_command` method that returns `SpinelPacket` (97 format). Then you can access its payload (bytes) via `data` property.
-
-#### Usage
+For devices that use the Spinel protocol over an Ethernet connection, the `NetworkSpinelHub` manages individual TCP transports for you.
 
 ```python
 import asyncio
-
-from aiopapouch import create_serial_device
-from aiopapouch.client import PapouchSerialClient
-from pap_spinel import SerialTransport, SpinelClient
-
+from aiopapouch.hub import NetworkSpinelHub
 
 async def main():
+    # Context manager ensures all TCP ports are automatically closed on exit
+    async with NetworkSpinelHub() as hub:
 
-    transport = SerialTransport(port = "/dev/ttyUSB0", baudrate = 9600)
-    client = PapouchSerialClient(SpinelClient(transport))
+        # Add Spinel device by its IP and Port
+        await hub.create_and_add_device("192.168.3.40", 10001)
 
+        print("Health Status:", await hub.check_health())
+        print("Telemetry Data:", await hub.get_fresh_data())
+
+        # Showcasing pythonic iteration over the hub
+        for device in hub:
+            print(f"Serial Device Context: {device.conf.context}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+```
+
+### 3. Serial RS485 Usage Example
+
+For serial communication, you can use `PapouchSerialClient` that wraps the `pap_spinel` transport layer. The client can also resolve some data from the device without needing to know its exact type.
+
+> **Note**: Don't forget to give permissions to open/close the port if using direct USB/Serial connection (`/dev/ttyUSB0`).
+
+The `SerialHub` also features a **Plug & Play discovery** method (`discover_and_add_single_device()`). If you have exactly one new device physically connected to the bus, this method uses the broadcast address to automatically identify and add it. *(Note: If multiple unknown devices are on the bus, this will raise an error due to data collision).*
+
+```python
+import asyncio
+from aiopapouch import SerialHub
+from aiopapouch.client import PapouchSerialClient
+from pap_spinel import TcpTransport, SerialTransport
+
+async def main():
+    # You can use either a TCP Gateway or Direct Serial connection:
+    transport = TcpTransport("192.168.3.33", 10001)
+    # transport = SerialTransport(port="/dev/ttyUSB0", baudrate=9600)
+
+    client = PapouchSerialClient(transport)
     await client.open()
 
-    try:
-        device = await create_serial_device(api_client = client, address = 0)
-        data = await device.get_fresh_data()
-        print(data)
-        # {'sensor': {'temperature_1': 27.1, 'humidity_2': 45.8, 'dew_point_3': 14.4}}
+    # The async context manager automatically calls client.close() when done
+    async with SerialHub(client) as hub:
 
-        print(f"Name: {device.conf.name}, location: {device.conf.location}, serial number: {device.conf.identifier}")
-        # Name: THT2, location: Workspace, serial number: 0523/19559
+        # Option A: Plug & Play - Auto-detect a single connected device
+        # await hub.discover_and_add_single_device()
 
-    finally:
-        await client.close()
+        # Option B: Automatically assign free addresses by known serial numbers
+        await hub.create_device_by_serial_number("1395/0149")
+        await hub.create_device_by_serial_number("1255/5627")
 
+        # Option C: Add a device by a known address
+        # await hub.create_and_add_device(address=1)
 
-asyncio.run(main())
+        # Check health and fetch data concurrently
+        print("Health Status:", await hub.check_health())
+        print("Telemetry Data:", await hub.get_fresh_data())
+
+        for device in hub:
+            print(f"Device: {device.conf.name} - Address: {device.conf.address}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 ```
 
 ### Exceptions
 
-The library defines custom exceptions raised during execution. The usage is [below](#code-example).
+The library defines custom exceptions raised during execution, such as `DeviceConnectionError`, `DeviceAuthError`, `DeviceParseError`, and `DeviceLogicError`.
 
 ### Device Control and Configuration
 
@@ -189,7 +208,7 @@ For a complete list of available methods and properties, please refer to the doc
 * `set_number_value(category, item_id, value)`: Executes a counter operation (such as decreasing or directly setting the counter) based on the `category`, `item_id`, and specified `value`.
 * `execute_button_command(cmd_type)`: Triggers a button action using the `cmd` identifier.
 
-#### Code Example
+#### Code Example (Control)
 
 ```python
 import asyncio
@@ -197,27 +216,18 @@ import aiohttp
 from aiopapouch import PapouchHTTPClient, create_network_device
 
 async def main():
-    # Initialize the aiohttp client session
     async with aiohttp.ClientSession() as session:
-        # Initialize the API transport client
         client = PapouchHTTPClient("192.168.1.100", session)
         device = await create_network_device(client)
 
         if device is None:
             return
 
-        # 1. Discover available controls and parameters by printing them
+        # 1. Discover available controls and parameters
         print("Switches:", device.get_supported_switches())
-        # Output example: [{'item_id': '1', 'name': 'Output 1', ...}, ...]
-
         print("Selects:", device.get_supported_selects())
-        # Output example: [{'item_id': '1', 'category': 'sensor_type', 'options': ['unused', 'temperature_ds', ...], ...}, ...]
-
         print("Buttons:", device.get_supported_buttons())
-        # Output example: [{'cmd': 'set_sensor_1', ...}, ...]
-
         print("Numbers:", device.get_supported_numbers())
-        # Output example: [{'item_id': '1', 'category': 'decrease_counter', 'min_value': 0, 'max_value': 4294967295, ...}, ...]
 
         # 2. Execute actions using the explicitly discovered IDs and exact option strings
 

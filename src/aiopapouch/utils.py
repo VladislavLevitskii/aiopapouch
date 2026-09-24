@@ -84,7 +84,7 @@ async def assign_next_available_address(
 async def _get_device_details(
     api_client: PapouchSerialClient, address: int
 ) -> tuple[str, str, int]:
-    """Test device connection and return errors, name, and serial number."""
+    """Test device connection and return name, serial number and device's address (if broadcast was used)."""
 
     pkt_man_data = await api_client.get_man_data(
         address, f"Unknown device with {address} address"

@@ -2,12 +2,16 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, TypeVar, override
 
 import defusedxml.ElementTree as defused_ET
 
 from aiopapouch.client import PapouchHTTPClient, PapouchSerialClient
-from aiopapouch.exceptions import DeviceLogicError, DeviceResponseError
+from aiopapouch.exceptions import (
+    DeviceConnectionError,
+    DeviceLogicError,
+    DeviceResponseError,
+)
 
 from ..utils import find_tag
 
@@ -33,6 +37,7 @@ class PapouchSerialConfiguration(PapouchConfiguration):
     """Configuration for all serial devices."""
 
     address: int = -1
+    host: str | None = None
 
 
 @dataclass
@@ -40,7 +45,7 @@ class PapouchNetworkConfiguration(PapouchConfiguration):
     """Configuration for all network devices."""
 
 
-class PapouchDevice(ABC, Generic[ClientT]):
+class PapouchDevice[ClientT](ABC):
     """Abstract class for Papouch devices."""
 
     api_client: ClientT
@@ -124,6 +129,10 @@ class PapouchDevice(ABC, Generic[ClientT]):
     @abstractmethod
     def conf(self) -> PapouchConfiguration:
         """Return the device configuration."""
+
+    @abstractmethod
+    async def ping(self) -> bool:
+        """Ping the device. Return false if device doesn't respond otherwise True. Doesn't raise."""
 
     @abstractmethod
     async def get_fresh_data(self) -> dict:
@@ -263,6 +272,15 @@ class PapouchSerialDevice(PapouchDevice[PapouchSerialClient], ABC):
     def conf(self) -> PapouchSerialConfiguration:
         """Configuration for serial devices"""
 
+    @override
+    async def ping(self) -> bool:
+        try:
+            await self.api_client.get_info(self.conf.address, context="")
+        except DeviceConnectionError:
+            return False
+
+        return True
+
 
 class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
     """Base class for network devices."""
@@ -271,6 +289,15 @@ class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
     @abstractmethod
     def conf(self) -> PapouchNetworkConfiguration:
         """Configuration for serial devices"""
+
+    @override
+    async def ping(self) -> bool:
+        try:
+            _ = await self.api_client.fetch_info()
+        except DeviceConnectionError:
+            return False
+
+        return True
 
     async def _send_command(
         self,

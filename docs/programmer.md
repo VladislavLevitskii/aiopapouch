@@ -69,13 +69,30 @@ Both clients are designed for easier usage at the expense of the single-responsi
 
 ### Serial
 
-`PapouchSerialClient` wraps the `SpinelClient` from the external `pap_spinel` library. It includes standard transport methods (`open`/`close`) and high-level, device-related operations (fetching manufacturing data, location, setting the address).
+`PapouchSerialClient` wraps the `SpinelClient` from the external `pap_spinel` library. It includes standard transport methods (`open`/`close`) and high-level, device-related operations (fetching manufacturing data, location, setting the address) and most importantly lock preventing race conditions.
 
 Since `aiopapouch` does not provide high-level abstractions for every edge-case tool a device might have, you can use the low-level `write_command` method. It returns a `SpinelPacket` (Format 97), allowing direct access to the raw payload bytes via the `data` property.
 
 ### Context
 
 Every device configuration holds a `context` property heavily utilized in the communication methods of the clients. This is used to append descriptive device context to exceptions. For example, exceptions will automatically provide the identifier and name of the hardware that caused the failure, preventing ambiguous crash logs.
+
+## Hubs (Device Management)
+
+To manage multiple devices efficiently and safely, the library provides a Hub architecture. The core `Hub` is implemented as an abstract base class (`ABC`) using generic typing (`Hub[DeviceT]`), bounded by `PapouchDevice`. This ensures strict type safety across different transport layers.
+
+Hubs centralize collective operations, such as concurrent data fetching (`get_fresh_data`) and status polling (`check_health`), leveraging `asyncio.gather` for performance.
+
+### Architectural Differences in Hubs
+
+Because the underlying transport layers behave fundamentally differently, the specific hub implementations reflect this in their instantiation and client management:
+
+* **`SerialHub` (RS485):** Takes a *single* instantiated `PapouchSerialClient`. Since all RS485 devices share the same physical (or virtual) bus, the hub coordinates them using their hardware addresses or serial numbers. It also includes topology-specific methods like `discover_and_add_single_device()`, which utilizes the broadcast address to auto-detect a single connected device (safely catching data collision exceptions internally).
+* **`NetworkHub` (HTTP):** Takes a shared `aiohttp.ClientSession`. Because IP devices do not share a logical bus in the same way, the `NetworkHub` acts as a factory, dynamically spawning isolated `PapouchHTTPClient` instances for every added IP address while efficiently recycling the underlying TCP connections via the shared session.
+
+### Custom Hubs
+
+There is a possibility to create subclasses of the `Hub` base class to implement custom topologies, specific event callbacks, or filtering logic tailored to their application needs without breaking the type-safe contracts.
 
 ## Converters
 

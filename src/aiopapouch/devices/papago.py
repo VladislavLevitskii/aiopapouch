@@ -4,7 +4,7 @@ import logging
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, cast, override
+from typing import Any, ClassVar, override
 
 import defusedxml.ElementTree as defused_ET
 

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Any, cast, override
+from typing import Any, override
 
 import defusedxml.ElementTree as defused_ET
 

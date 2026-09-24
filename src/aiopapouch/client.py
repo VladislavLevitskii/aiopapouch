@@ -8,8 +8,17 @@ from typing import Any
 
 import aiohttp
 import defusedxml.ElementTree as defused_ET
-from pap_spinel import Packet97, SpinelClient, SpinelError
+from pap_spinel.packet import INST_INFO, INST_LOC, INST_SN
 
+from pap_spinel import (
+    Packet97,
+    SpinelClient,
+    SpinelError,
+    SpinelTransport,
+    SpinelTransportError,
+)
+
+from .const import INST_NEW_ADDR, SERIAL_BROADCAST_ADDRESS
 from .exceptions import DeviceAuthError, DeviceConnectionError, DeviceLogicError
 
 INFO_URL = "is.xml"
@@ -210,18 +219,24 @@ class PapouchHTTPClient:
 class PapouchSerialClient:
     """API client for communicating with a device via RS485."""
 
-    def __init__(self, spinel_client: SpinelClient) -> None:
+    def __init__(self, transport: SpinelTransport) -> None:
         """Constructor for serial API client."""
-        self._spinel_client = spinel_client
+        self._spinel_client = SpinelClient(transport)
         self.lock = asyncio.Lock()
 
     async def open(self) -> None:
         """Open port."""
-        await self._spinel_client.open()
+        try:
+            await self._spinel_client.open()
+        except SpinelTransportError as err:
+            raise DeviceConnectionError("Unable to open port.") from err
 
     async def close(self) -> None:
         """Close port."""
-        await self._spinel_client.close()
+        try:
+            await self._spinel_client.open()
+        except SpinelTransportError as err:
+            raise DeviceConnectionError("Unable to close port.") from err
 
     async def write_command(
         self,
@@ -245,21 +260,21 @@ class PapouchSerialClient:
     async def get_info(self, address: int, context: str) -> Packet97:
         """Get info in Spinel97 packet. Context is used for error message."""
         try:
-            return await self._spinel_client.info(address)
+            return await self.write_command(address, INST_INFO, context)
         except SpinelError as err:
             raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
 
     async def get_man_data(self, address: int, context: str) -> Packet97:
         """Get manufacturing data in Spinel97 packet. Context is used for error message."""
         try:
-            return await self._spinel_client.man_data(address)
+            return await self.write_command(address, INST_SN, context)
         except SpinelError as err:
             raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
 
     async def get_location(self, address: int, context: str) -> Packet97:
         """Get location in Spinel97 packet. Context is used for error message."""
         try:
-            return await self._spinel_client.user_data(address)
+            return await self.write_command(address, INST_LOC, context)
         except SpinelError as err:
             raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
 
@@ -282,7 +297,9 @@ class PapouchSerialClient:
         request_data += ser_bytes
 
         try:
-            await self._spinel_client.request(addr=0xFE, inst=0xEB, data=request_data)
+            await self.write_command(
+                SERIAL_BROADCAST_ADDRESS, INST_NEW_ADDR, context, data=request_data
+            )
         except SpinelError as err:
             raise DeviceConnectionError(
                 f"Failed setting a new address to the device: {context} "
