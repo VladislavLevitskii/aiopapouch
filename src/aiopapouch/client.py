@@ -234,7 +234,7 @@ class PapouchSerialClient:
     async def close(self) -> None:
         """Close port."""
         try:
-            await self._spinel_client.open()
+            await self._spinel_client.close()
         except SpinelTransportError as err:
             raise DeviceConnectionError("Unable to close port.") from err
 
