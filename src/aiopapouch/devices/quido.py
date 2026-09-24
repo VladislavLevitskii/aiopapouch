@@ -550,6 +550,14 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         result_pkt = await self.api_client.write_command(
             self.conf.address, INST_READ_OUTPUT, self.conf.context
         )
+
+        expected_bytes = (self.conf.number_outputs + 7) // 8
+        if len(result_pkt.data) < expected_bytes:
+            raise DeviceParseError(
+                f"Invalid size of the payload for {self.conf.context}. "
+                f"Expected {expected_bytes} bytes, got {len(result_pkt.data)}."
+            )
+
         result_int = int.from_bytes(result_pkt.data)
 
         result: dict = {}
@@ -564,6 +572,14 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         result_pkt = await self.api_client.write_command(
             self.conf.address, INST_READ_STATE_INPUT, self.conf.context
         )
+
+        expected_bytes = (self.conf.number_inputs + 7) // 8
+        if len(result_pkt.data) < expected_bytes:
+            raise DeviceParseError(
+                f"Invalid size of the payload for {self.conf.context}. "
+                f"Expected {expected_bytes} bytes, got {len(result_pkt.data)}."
+            )
+
         result_int = int.from_bytes(result_pkt.data)
 
         result: dict = {}
@@ -583,6 +599,12 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         if result_pkt.ack_code() == ACK_FAILURE:
             return None
 
+        if len(result_pkt.data) < 2:
+            raise DeviceParseError(
+                f"Invalid size of the payload for {self.conf.context}. "
+                f"Expected 2 bytes, got {len(result_pkt.data)}."
+            )
+
         data_part = result_pkt.data[1:]
 
         result = int.from_bytes(data_part, signed=True)
@@ -595,8 +617,22 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             self.conf.address, INST_READ_INPUT_COUNTER, self.conf.context, b"\x00"
         )
 
+        if not result_pkt.data:
+            raise DeviceParseError(
+                f"Empty payload for counters in {self.conf.context}."
+            )
+
         bits = result_pkt.data[0]
         bytes_per_counter = bits // 8
+
+        expected_bytes = 1 + (self.conf.number_inputs * bytes_per_counter)
+
+        if len(result_pkt.data) < expected_bytes:
+            raise DeviceParseError(
+                f"Invalid size of the payload for {self.conf.context}. "
+                f"Expected {expected_bytes} bytes, got {len(result_pkt.data)}."
+            )
+
         result_data_bytes = result_pkt.data[1:]
 
         for i in range(1, self.conf.number_inputs + 1):
@@ -785,10 +821,10 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             address, INST_INFO_DATA_QUIDO, context, b"\x01"
         )
 
-        if len(pkt.data) != 2:
+        if len(pkt.data) != 3:
             raise DeviceParseError(
                 f"Invalid size of the payload for {context}. "
-                f"Expected 2 bytes, got {len(pkt.data)}."
+                f"Expected 3 bytes, got {len(pkt.data)}."
             )
 
         number_outputs = pkt.data[0]

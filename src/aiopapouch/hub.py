@@ -22,8 +22,6 @@ from .discovery import async_discover_papouch_devices
 from .exceptions import DeviceConnectionError, DeviceLogicError
 from .utils import _get_device_details, assign_next_available_address
 
-DeviceT = TypeVar("DeviceT", bound=PapouchDevice)
-
 _LOGGER = logging.getLogger(__name__)
 
 

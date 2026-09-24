@@ -68,6 +68,9 @@ class THCO2(PapouchSerialDevice):
         """Parse raw bytes into dictionary )."""
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
+        if len(data) == 0:
+            raise DeviceParseError(f"Payload for {self.conf.context} is empty")
+
         status = data[0]
         if status != 0:
             return parsed_data

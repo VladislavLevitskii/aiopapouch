@@ -225,6 +225,12 @@ async def _get_unit(
 
     data = pkt_unit.data
 
+    if len(data) != 2:
+        raise DeviceParseError(
+            f"Invalid size of the payload for THT2 with {serial_number} on {address}. "
+            f"Expected 2 bytes, got {len(data)}."
+        )
+
     # first channel value because setting can happen only on every channel
     chunk = data[1]
 
