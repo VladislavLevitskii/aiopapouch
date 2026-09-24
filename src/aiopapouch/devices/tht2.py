@@ -215,13 +215,6 @@ class THT2(PapouchSerialDevice):
             f"Calling not implemented method in {self.conf.context}."
         )
 
-    @override
-    def _parse_initial_settings(self) -> None:
-        """Unused in THT2."""
-        raise DeviceLogicError(
-            f"Calling not implemented method in {self.conf.context}."
-        )
-
 
 async def _get_unit(
     transport: PapouchSerialClient, address: int, serial_number: str

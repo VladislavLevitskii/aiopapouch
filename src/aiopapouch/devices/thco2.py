@@ -224,13 +224,6 @@ class THCO2(PapouchSerialDevice):
             f"Calling not implemented method in {self.conf.context}."
         )
 
-    @override
-    def _parse_initial_settings(self) -> None:
-        """Unused in THCO2."""
-        raise DeviceLogicError(
-            f"Calling not implemented method in {self.conf.context}."
-        )
-
 
 async def async_setup_serial_thco2(
     client: PapouchSerialClient,

@@ -255,14 +255,6 @@ class PapouchDevice[ClientT](ABC):
     async def switch_to_web_mode(self) -> None:
         """Switch the device network mode to WEB and wait 15-30 seconds. (Depends on the device)"""
 
-    @abstractmethod
-    def _parse_initial_settings(self) -> None:
-        """Parse settings XML for each device.
-
-        Note that this is called only in ctor of the proper device
-        and should be a private method.
-        """
-
 
 class PapouchSerialDevice(PapouchDevice[PapouchSerialClient], ABC):
     """Base class for serial devices."""

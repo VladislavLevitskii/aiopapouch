@@ -381,12 +381,6 @@ class TH2E(PapouchNetworkDevice):
 
         await asyncio.sleep(15)
 
-    @override
-    def _parse_initial_settings(self) -> None:
-        raise DeviceLogicError(
-            f"Calling not implemented method in {self.conf.context}."
-        )
-
 
 async def async_setup_network_th2e(client: PapouchHTTPClient) -> TH2E:
     """Async factory for TH2E device."""

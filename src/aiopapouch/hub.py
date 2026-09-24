@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from abc import ABC
-from typing import TypeVar, override
+from typing import Any, TypeVar, override
 
 import aiohttp
 
@@ -27,7 +27,7 @@ DeviceT = TypeVar("DeviceT", bound=PapouchDevice)
 _LOGGER = logging.getLogger(__name__)
 
 
-class Hub[ClientT, DeviceT: PapouchDevice[ClientT]](ABC):
+class Hub[DeviceT: PapouchDevice[Any]](ABC):
     """Base class for Hub"""
 
     def __init__(self) -> None:
@@ -131,7 +131,7 @@ class Hub[ClientT, DeviceT: PapouchDevice[ClientT]](ABC):
         }
 
 
-class SerialHub(Hub[PapouchSerialClient, PapouchSerialDevice]):
+class SerialHub(Hub[PapouchSerialDevice]):
     """Hub for serial devices."""
 
     def __init__(self, client: PapouchSerialClient) -> None:
@@ -227,7 +227,7 @@ class SerialHub(Hub[PapouchSerialClient, PapouchSerialDevice]):
         raise DeviceLogicError(f"Device with address {address} is not in the hub.")
 
 
-class NetworkHub(Hub[PapouchHTTPClient, PapouchNetworkDevice]):
+class NetworkHub(Hub[PapouchNetworkDevice]):
     """Hub for network (IP-based) devices."""
 
     def __init__(self, session: aiohttp.ClientSession) -> None:
@@ -309,7 +309,7 @@ class NetworkHub(Hub[PapouchHTTPClient, PapouchNetworkDevice]):
         raise DeviceLogicError(f"Device with IP {ip_address} is not in the hub.")
 
 
-class NetworkSpinelHub(Hub[PapouchSerialClient, PapouchSerialDevice]):
+class NetworkSpinelHub(Hub[PapouchSerialDevice]):
     """Hub for standalone network devices that use the Spinel protocol over TCP."""
 
     async def __aenter__(self):

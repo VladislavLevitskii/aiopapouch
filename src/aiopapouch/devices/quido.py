@@ -441,7 +441,6 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
 
         self.conf.counter_states[item_id] = mode
 
-    @override
     def _parse_initial_settings(self) -> None:
         """Parse the initial settings XML to configure device properties.
 
@@ -777,13 +776,6 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             self.conf.address, INST_WRITE_OUTPUT, self.conf.context, payload
         )
 
-    @override
-    def _parse_initial_settings(self) -> None:
-        """Unused."""
-        raise DeviceLogicError(
-            f"Calling not implemented method in {self.conf.context}."
-        )
-
     @staticmethod
     async def get_number_io(
         client: PapouchSerialClient, address: int, context: str
@@ -792,6 +784,13 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         pkt = await client.write_command(
             address, INST_INFO_DATA_QUIDO, context, b"\x01"
         )
+
+        if len(pkt.data) != 2:
+            raise DeviceParseError(
+                f"Invalid size of the payload for {context}. "
+                f"Expected 2 bytes, got {len(pkt.data)}."
+            )
+
         number_outputs = pkt.data[0]
         number_inputs = pkt.data[1]
         return number_outputs, number_inputs
@@ -808,6 +807,12 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         )
 
         result_data_bytes = result_pkt.data
+
+        if len(result_data_bytes) < conf.number_inputs:
+            raise DeviceParseError(
+                f"Invalid counter modes payload for {conf.context}. "
+                f"Expected at least {conf.number_inputs} bytes, got {len(result_data_bytes)}."
+            )
 
         for i in range(1, conf.number_inputs + 1):
             counter_mode_int_data = result_data_bytes[i - 1]

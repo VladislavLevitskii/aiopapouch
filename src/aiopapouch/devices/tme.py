@@ -52,8 +52,6 @@ class TMEBase(PapouchNetworkDevice, ABC):
             context=f"{name} ({location}) - {self.api_client.ip_address}",
         )
 
-        self._parse_initial_settings()
-
     @override
     async def get_fresh_data(self) -> dict:
         """Parse fresh data. Extracts global unit and delegates to specific parsers."""
@@ -202,12 +200,6 @@ class TMEBase(PapouchNetworkDevice, ABC):
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Unused in TME."""
-        raise DeviceLogicError(
-            f"Calling not implemented method in {self.conf.context}."
-        )
-
-    @override
-    def _parse_initial_settings(self) -> None:
         raise DeviceLogicError(
             f"Calling not implemented method in {self.conf.context}."
         )

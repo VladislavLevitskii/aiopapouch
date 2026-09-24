@@ -672,7 +672,6 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             f"Calling not implemented method in {self.conf.context}."
         )
 
-    @override
     def _parse_initial_settings(self) -> None:
         """Base method for other devices to parse their settings."""
         for element in self.settings_root.iter():
