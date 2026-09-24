@@ -136,9 +136,9 @@ class PapouchDevice[ClientT](ABC):
 
     @abstractmethod
     async def get_fresh_data(self) -> dict:
-        """Parse the device-specific XML and return normalized data.
+        """Fetch and parse fresh data and return normalized data.
 
-        The returned dictionary must map the parsed data to standard keys,
+        The returned dictionary must map the parsed data to semantic keys,
         with each containing a nested dictionary indexed by the string `item_id`:
 
         Example output:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from ..client import PapouchSerialClient
+from ..const import INST_READ_TEMPERATURE
 from ..exceptions import DeviceLogicError
 from .base import PapouchSerialConfiguration, PapouchSerialDevice
 
@@ -52,7 +53,7 @@ class TQS4(PapouchSerialDevice):
         """Fetch raw bytes of the fresh data from the serial device."""
         packet = await self.api_client.write_command(
             self.conf.address,
-            0x51,
+            INST_READ_TEMPERATURE,
             self.conf.context,
         )
         return packet.data

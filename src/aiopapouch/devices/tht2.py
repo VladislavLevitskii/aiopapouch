@@ -7,9 +7,12 @@ from typing import Any, override
 from aiopapouch.exceptions import DeviceLogicError, DeviceParseError
 
 from ..client import PapouchSerialClient
+from ..const import INST_READ_TEMPERATURE
 from .base import PapouchSerialConfiguration, PapouchSerialDevice
 
 _LOGGER = logging.getLogger(__name__)
+
+INST_GET_UNIT = 0x1B
 
 
 @dataclass
@@ -53,7 +56,7 @@ class THT2(PapouchSerialDevice):
     async def _update_data(self) -> bytes:
         """Fetch raw bytes of the fresh data from the serial device."""
         packet = await self.api_client.write_command(
-            self.conf.address, 0x51, self.conf.context, b"\x00"
+            self.conf.address, INST_READ_TEMPERATURE, self.conf.context, b"\x00"
         )
         return packet.data
 
@@ -224,7 +227,7 @@ async def _get_unit(
     transport: PapouchSerialClient, address: int, serial_number: str
 ) -> str:
     pkt_unit = await transport.write_command(
-        address, 0x1B, f"THT2 on address {address} - SN: {serial_number}"
+        address, INST_GET_UNIT, f"THT2 on address {address} - SN: {serial_number}"
     )
 
     data = pkt_unit.data

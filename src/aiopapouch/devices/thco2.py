@@ -7,6 +7,7 @@ from typing import Any, override
 from aiopapouch.exceptions import DeviceLogicError, DeviceParseError
 
 from ..client import PapouchSerialClient
+from ..const import INST_READ_TEMPERATURE
 from .base import PapouchSerialConfiguration, PapouchSerialDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class THCO2(PapouchSerialDevice):
         """Fetch raw bytes of the fresh data from the serial device."""
         packet = await self.api_client.write_command(
             self.conf.address,
-            0x51,
+            INST_READ_TEMPERATURE,
             self.conf.context,
         )
         return packet.data

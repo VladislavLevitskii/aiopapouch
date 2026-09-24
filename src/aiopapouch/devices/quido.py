@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from typing import Any, override
 
 import defusedxml.ElementTree as defused_ET
+
 from pap_spinel import ACK_FAILURE
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
+from ..const import INST_READ_TEMPERATURE
 from ..exceptions import DeviceLogicError, DeviceParseError
 from ..utils import find_tag
 from .base import (
@@ -24,6 +26,16 @@ from .base import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+INST_WRITE_OUTPUT = 0x20
+INST_WRITE_OUTPUT_TIME = 0x23
+INST_READ_OUTPUT = 0x30
+INST_READ_STATE_INPUT = 0x31
+INST_READ_INPUT_COUNTER = 0x60
+INST_SUBTRACT_COUNTER = 0x61
+INST_COUNTER_MODE_WRITE = 0x6A
+INST_COUNTER_MODE_READ = 0x6B
+INST_INFO_DATA_QUIDO = 0xF3
 
 
 @dataclass
@@ -537,7 +549,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
     async def _get_state_coils(self) -> dict:
         result_pkt = await self.api_client.write_command(
-            self.conf.address, 0x30, self.conf.context
+            self.conf.address, INST_READ_OUTPUT, self.conf.context
         )
         result_int = int.from_bytes(result_pkt.data)
 
@@ -551,7 +563,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
     async def _get_inputs(self) -> dict:
         result_pkt = await self.api_client.write_command(
-            self.conf.address, 0x31, self.conf.context
+            self.conf.address, INST_READ_STATE_INPUT, self.conf.context
         )
         result_int = int.from_bytes(result_pkt.data)
 
@@ -565,7 +577,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
     async def _get_temp(self) -> float | None:
         result_pkt = await self.api_client.write_command(
-            self.conf.address, 0x51, self.conf.context, b"\x01"
+            self.conf.address, INST_READ_TEMPERATURE, self.conf.context, b"\x01"
         )
 
         # for some reason if there is no temp sensor it returns ACK 5
@@ -581,7 +593,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         result: dict = {}
 
         result_pkt = await self.api_client.write_command(
-            self.conf.address, 0x60, self.conf.context, b"\x00"
+            self.conf.address, INST_READ_INPUT_COUNTER, self.conf.context, b"\x00"
         )
 
         bits = result_pkt.data[0]
@@ -633,7 +645,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         payload = result_int.to_bytes(1)
 
         await self.api_client.write_command(
-            self.conf.address, 0x6A, self.conf.context, payload
+            self.conf.address, INST_COUNTER_MODE_WRITE, self.conf.context, payload
         )
         self.conf.counter_states[item_id] = mode
 
@@ -659,7 +671,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
     async def _decrease_value_counter(self, item_id: str, value: int) -> None:
         payload = int(item_id).to_bytes(1) + value.to_bytes(2)
         response = await self.api_client.write_command(
-            self.conf.address, 0x61, self.conf.context, payload
+            self.conf.address, INST_SUBTRACT_COUNTER, self.conf.context, payload
         )
 
         ack_code = response.ack_code()
@@ -690,7 +702,10 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
                 payload = time_units.to_bytes(1) + set_byte.to_bytes(1)
 
                 await self.api_client.write_command(
-                    self.conf.address, 0x23, self.conf.context, payload
+                    self.conf.address,
+                    INST_WRITE_OUTPUT_TIME,
+                    self.conf.context,
+                    payload,
                 )
 
             case _:
@@ -740,7 +755,10 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
             if payload:
                 await self.api_client.write_command(
-                    self.conf.address, 0x61, self.conf.context, bytes(payload)
+                    self.conf.address,
+                    INST_SUBTRACT_COUNTER,
+                    self.conf.context,
+                    bytes(payload),
                 )
 
     @override
@@ -748,7 +766,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         output_num = int(item_id)
         payload = (0x80 | output_num).to_bytes(1)
         await self.api_client.write_command(
-            self.conf.address, 0x20, self.conf.context, payload
+            self.conf.address, INST_WRITE_OUTPUT, self.conf.context, payload
         )
 
     @override
@@ -756,7 +774,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         output_num = int(item_id)
         payload = output_num.to_bytes(1, "big")
         await self.api_client.write_command(
-            self.conf.address, 0x20, self.conf.context, payload
+            self.conf.address, INST_WRITE_OUTPUT, self.conf.context, payload
         )
 
     @override
@@ -771,7 +789,9 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         client: PapouchSerialClient, address: int, context: str
     ) -> tuple[int, int]:
         """Resolving number of inputs and outputs."""
-        pkt = await client.write_command(address, 0xF3, context, b"\x01")
+        pkt = await client.write_command(
+            address, INST_INFO_DATA_QUIDO, context, b"\x01"
+        )
         number_outputs = pkt.data[0]
         number_inputs = pkt.data[1]
         return number_outputs, number_inputs
@@ -784,7 +804,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         """Assignes proper mode of the counters in the configuration."""
 
         result_pkt = await api_client.write_command(
-            conf.address, 0x6B, conf.context, b"\x00"
+            conf.address, INST_COUNTER_MODE_READ, conf.context, b"\x00"
         )
 
         result_data_bytes = result_pkt.data
