@@ -62,7 +62,7 @@ async def _get_device_info(
         if connection_type == "network_hub":
             _LOGGER.debug("Trying to connect GNOME")
             if converter := await async_setup_converter_gnome(client):
-                return (converter.conf.location, converter.conf.name)
+                return (converter.conf.name, converter.conf.location)
 
         return None
 
@@ -78,7 +78,7 @@ async def _get_device_info(
     if device_location == "":
         device_location = UNKNOWN_LOCATION
 
-    return (device_location, device_name)
+    return (device_name, device_location)
 
 
 async def async_discover_papouch_devices(

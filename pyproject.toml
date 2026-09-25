@@ -23,3 +23,6 @@ Source = "https://github.com/VladislavLevitskii/aiopapouch"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aiopapouch"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

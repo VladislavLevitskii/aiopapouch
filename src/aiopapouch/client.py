@@ -147,10 +147,10 @@ class PapouchHTTPClient:
             ) as response:
                 if response.status != 200:
                     if response.status == 401:
-                        raise DeviceAuthError("Invalid password")
+                        raise DeviceAuthError(f"Invalid password in {context}")
 
                     raise DeviceConnectionError(
-                        f"Failed to send command: {response.status}"
+                        f"Failed to send command: {response.status}, in {context}"
                     )
                 return await response.text(encoding=ENCODING)
 
