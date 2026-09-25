@@ -154,7 +154,7 @@ async def test_async_discovery_timeout_exception(
     mock_client = AsyncMock(spec=PapouchHTTPClient)
     mocker.patch("aiopapouch.discovery.PapouchHTTPClient", return_value=mock_client)
 
-    async def slow_get_device_info():
+    async def slow_get_device_info(*args, **kwargs):
         """Simulate sleep."""
         await asyncio.sleep(ACTIVE_DISCOVERY_TIMEOUT + 0.1)
         return ("TME", "Store")
