@@ -19,7 +19,13 @@ from pap_spinel import (
 )
 
 from .const import INST_NEW_ADDR, SERIAL_BROADCAST_ADDRESS
-from .exceptions import DeviceAuthError, DeviceConnectionError, DeviceLogicError
+from .exceptions import (
+    DeviceAuthError,
+    DeviceConnectionError,
+    DeviceLogicError,
+    DeviceParseError,
+)
+from .utils import get_box_attribute
 
 INFO_URL = "is.xml"
 DATA_URL = "fresh.xml"
@@ -49,7 +55,24 @@ class PapouchHTTPClient:
         password: str = "",
         web_port: int = DEFAULT_WEB_PORT,
     ) -> None:
-        """Constructor for API client."""
+        """
+        Constructor for API client.
+
+        ip_address can be also be a hostname
+
+        Raise DeviceLogicError if parameters have different types.
+        """
+
+        if not isinstance(ip_address, str):
+            raise DeviceLogicError("ip_address must be a string")
+        if not isinstance(password, str):
+            raise DeviceLogicError("password must be a string")
+        if not isinstance(web_port, int):
+            raise DeviceLogicError("web_port must be an integer")
+
+        if not 0 <= web_port <= 65535:
+            raise DeviceLogicError("web_port must be between 0 and 65536")
+
         self.base_url = f"http://{ip_address}:{web_port}/"
         self.session = session
         self.ip_address = ip_address
@@ -99,33 +122,25 @@ class PapouchHTTPClient:
 
         return (device_name, device_location)
 
-    async def get_device_mac(self) -> str:
-        """Return MAC of the device."""
+    async def _get_box_attribute(
+        self, box_num: str, attr_name: str, error_context: str
+    ) -> str:
+        """Helper to extract a specific attribute from a specific box in settings."""
+
         settings = await self.fetch_settings()
         root = defused_ET.fromstring(settings)
-        box = root.find(".//set[@box='12']")
-
-        if box is not None:
-            return str(box.attrib.get("mac", ""))
-
-        raise DeviceLogicError(
-            f"Device: {self.ip_address} doesn't have a box 12 with MAC address"
+        return get_box_attribute(
+            root, box_num, attr_name, self.ip_address, error_context
         )
+
+    async def get_device_mac(self) -> str:
+        """Return MAC of the device."""
+        return await self._get_box_attribute("12", "mac", "MAC address")
 
     async def get_device_tcp_port(self) -> int:
         """Return TCP port of the device."""
-        settings = await self.fetch_settings()
-        root = defused_ET.fromstring(settings)
-        box = root.find(".//set[@box='1']")
-
-        if box is not None:
-            tcp_port = box.attrib.get("lport")
-            if tcp_port:
-                return int(tcp_port)
-
-        raise DeviceLogicError(
-            f"Device: {self.ip_address} doesn't have a box 1 with TCP port"
-        )
+        port_str = await self._get_box_attribute("1", "lport", "TCP port")
+        return int(port_str)
 
     async def _send_request(
         self, method: str, endpoint: str, context: str, **kwargs: Any
@@ -213,7 +228,7 @@ class PapouchHTTPClient:
     def _check_exceptions_device_web_mode(self, device_name: str) -> bool:
         if device_name == "TME":
             return True
-        return "Papago" in device_name and "ETH" in device_name
+        return "Papago" in device_name
 
 
 class PapouchSerialClient:
@@ -246,7 +261,14 @@ class PapouchSerialClient:
         data: bytes = b"",
         timeout: float = 2.0,
     ) -> Packet97:
-        """Write command. Return Spinel97 Packet"""
+        """
+        Write command with lock.
+
+        Return Spinel97 Packet.
+
+        Wraps any SpinelError into DeviceConnectionError.
+        """
+
         async with self.lock:
             try:
                 return await self._spinel_client.request(
@@ -259,48 +281,50 @@ class PapouchSerialClient:
 
     async def get_info(self, address: int, context: str) -> Packet97:
         """Get info in Spinel97 packet. Context is used for error message."""
-        try:
-            return await self.write_command(address, INST_INFO, context)
-        except SpinelError as err:
-            raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
+        return await self.write_command(address, INST_INFO, context)
 
     async def get_man_data(self, address: int, context: str) -> Packet97:
         """Get manufacturing data in Spinel97 packet. Context is used for error message."""
-        try:
-            return await self.write_command(address, INST_SN, context)
-        except SpinelError as err:
-            raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
+        return await self.write_command(address, INST_SN, context)
 
     async def get_location(self, address: int, context: str) -> Packet97:
         """Get location in Spinel97 packet. Context is used for error message."""
-        try:
-            return await self.write_command(address, INST_LOC, context)
-        except SpinelError as err:
-            raise DeviceConnectionError(f"Device: {context} returned: {err}") from err
+        return await self.write_command(address, INST_LOC, context)
 
     async def set_address(
         self, new_address: int, serial_number: str, context: str
     ) -> None:
-        """Set a new address using serial number. Serial number should have format 0123/45678. Context is used for error message."""
+        """
+        Set a new address using serial number.
 
-        request_data = new_address.to_bytes(1, byteorder="big")
+        Serial number should have format 0123/45678.
+        Context is used for error message.
+        """
 
-        prod_part, ser_part = serial_number.split("/")
+        if not isinstance(new_address, int):
+            raise DeviceLogicError("new_address must be an integer")
+        if not 0 <= new_address <= 255:
+            raise DeviceLogicError("new_address must be between 0 and 255")
+        if not isinstance(serial_number, str):
+            raise DeviceLogicError("serial_number must be a string")
 
-        product_number_part = int(prod_part)
-        serial_number_part = int(ser_part)
+        try:
+            prod_part, ser_part = serial_number.split("/")
+            product_number_part = int(prod_part)
+            serial_number_part = int(ser_part)
+        except ValueError as err:
+            raise DeviceParseError(
+                f"Invalid serial_number format: '{serial_number}'."
+                f"Expected format like '0123/45678'. In {context}"
+            ) from err
 
-        prod_bytes = product_number_part.to_bytes(2, byteorder="big")
-        ser_bytes = serial_number_part.to_bytes(2, byteorder="big")
+        prod_bytes = product_number_part.to_bytes(length=2)
+        ser_bytes = serial_number_part.to_bytes(length=2)
 
+        request_data = new_address.to_bytes(length=1)
         request_data += prod_bytes
         request_data += ser_bytes
 
-        try:
-            await self.write_command(
-                SERIAL_BROADCAST_ADDRESS, INST_NEW_ADDR, context, data=request_data
-            )
-        except SpinelError as err:
-            raise DeviceConnectionError(
-                f"Failed setting a new address to the device: {context} "
-            ) from err
+        await self.write_command(
+            SERIAL_BROADCAST_ADDRESS, INST_NEW_ADDR, context, data=request_data
+        )

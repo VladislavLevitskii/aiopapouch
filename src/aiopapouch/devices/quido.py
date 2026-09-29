@@ -12,9 +12,9 @@ import defusedxml.ElementTree as defused_ET
 from pap_spinel import ACK_FAILURE
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
-from ..const import INST_READ_TEMPERATURE
+from ..const import INST_READ_TEMPERATURE, UNKNOWN_LOCATION, UNKNOWN_NAME
 from ..exceptions import DeviceLogicError, DeviceParseError
-from ..utils import find_tag
+from ..utils import get_box_attribute
 from .base import (
     ClientT,
     PapouchConfiguration,
@@ -216,24 +216,18 @@ class QuidoNetworkConfiguration(QuidoConfiguration, PapouchNetworkConfiguration)
 class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
     """Represents devices of Quido family."""
 
-    def __init__(self, api_client: PapouchHTTPClient, settings: str, info: str) -> None:
+    def __init__(
+        self,
+        api_client: PapouchHTTPClient,
+        settings_root: ET.Element,
+        conf: QuidoNetworkConfiguration,
+    ) -> None:
         """Constructor for Quido device."""
 
         super().__init__()
         self.api_client = api_client
-
-        self.info_root = defused_ET.fromstring(info)
-        self.settings_root = defused_ET.fromstring(settings)
-
-        name = self._get_name()
-        location = self._get_location()
-        mac_address = self._get_identifier()
-
-        context = f"{name} ({location}) - {self.api_client.ip_address}"
-
-        self._conf = QuidoNetworkConfiguration(
-            name=name, location=location, identifier=mac_address, context=context
-        )
+        self.settings_root = settings_root
+        self._conf = conf
 
         self._parse_initial_settings()
 
@@ -491,30 +485,6 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
             raise DeviceParseError(
                 f"Failed to parse initial settings: {err}, in the device: {self.conf.context}"
             ) from err
-
-    def _get_location(self) -> str:
-        """Return the location of the device."""
-        heartbeat = find_tag(self.info_root, "heartbeat")
-        if heartbeat is not None:
-            return heartbeat.attrib.get("location", "")
-        return ""
-
-    def _get_name(self) -> str:
-        """Return the name of the device."""
-        heartbeat = find_tag(self.info_root, "heartbeat")
-        if heartbeat is not None:
-            return heartbeat.attrib.get("device", "")
-        return ""
-
-    def _get_identifier(self) -> str:
-        """Return the identifier of the device."""
-        box = self.settings_root.find(".//set[@box='12']")
-        if box is not None:
-            return str(box.attrib.get("mac", ""))
-
-        raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.conf.context}"
-        )
 
     @override
     async def _turn_on_coil(self, item_id: str) -> None:
@@ -862,9 +832,24 @@ async def async_setup_network_quido(
     client: PapouchHTTPClient,
 ) -> QuidoETH:
     """Async factory for network Quido."""
+
     settings = await client.fetch_settings()
-    info = await client.fetch_info()
-    return QuidoETH(client, settings, info)
+    device_name, location = await client.get_device_info()
+
+    device_name = device_name or UNKNOWN_NAME
+    location = location or UNKNOWN_LOCATION
+
+    settings_root = defused_ET.fromstring(settings)
+
+    context = f"{device_name} ({location}) - {client.ip_address}"
+
+    mac_address = get_box_attribute(settings_root, "12", "mac", context, "MAC address")
+
+    conf = QuidoNetworkConfiguration(
+        name=device_name, location=location, identifier=mac_address, context=context
+    )
+
+    return QuidoETH(client, settings_root, conf)
 
 
 async def async_setup_serial_quido(

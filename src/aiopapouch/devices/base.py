@@ -120,7 +120,8 @@ class PapouchDevice[ClientT](ABC):
             ) from err
 
     def _generate_semantic_key(self, component_type: str, item_id: str) -> str:
-        """Generate a readable semantic key based on the component type and hardware ID."""
+        """Generate a readable semantic key based on the component type and item ID."""
+
         # Use mapping from class constants, fallback to raw string if unknown
         semantic_name = self.TYPE_MAPPING[component_type]
         return f"{semantic_name}_{item_id}"
@@ -147,7 +148,8 @@ class PapouchDevice[ClientT](ABC):
             "switch": {"1": 1, "2": 0}
         }
 
-        If a specific data type is not present on the device, its key should map to an empty dictionary.
+        If a specific data type is not present on the device,
+        its key should map to an empty dictionary.
         """
 
     @abstractmethod
@@ -285,7 +287,7 @@ class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
     @override
     async def ping(self) -> bool:
         try:
-            _ = await self.api_client.fetch_info()
+            await self.api_client.fetch_info()
         except DeviceConnectionError:
             return False
 

@@ -22,7 +22,8 @@ from ..client import (
     UDP_MODE_INDEX,
     PapouchHTTPClient,
 )
-from ..utils import find_tag
+from ..const import UNKNOWN_LOCATION
+from ..utils import find_tag, get_box_attribute
 from .base import PapouchConfiguration
 
 _LOGGER = logging.getLogger()
@@ -78,7 +79,7 @@ class Edgar(PapouchHTTPConverter):
         location: str | None,
         tcp_port: int,
     ):
-        _location = location or "NONAME"
+        _location = location or UNKNOWN_LOCATION
         self._conf = ConverterConfiguration(
             identifier, name, _location, f"{name} - ({_location})", tcp_port=tcp_port
         )
@@ -94,14 +95,14 @@ class Edgar(PapouchHTTPConverter):
         settings_xml = await self._client.fetch_settings()
         root = defused_ET.fromstring(settings_xml)
 
-        box = root.find(".//set[@box='1']")
+        value = get_box_attribute(root, "1", "comm", self.conf.context, "Device mode")
 
-        if box is not None:
-            return int(box.attrib.get("comm", "-1"))
-
-        raise DeviceParseError(
-            f"Box 1 wasn't found in settings.xml, in: {self.conf.context}"
-        )
+        try:
+            return int(value)
+        except ValueError as err:
+            raise DeviceParseError(
+                f"Mode is not represented in an integer in {self.conf.context}"
+            ) from err
 
     def _check_response(
         self, response_text: str, expected_status: str, action_msg: str

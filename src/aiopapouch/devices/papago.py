@@ -9,12 +9,13 @@ from typing import Any, ClassVar, override
 import defusedxml.ElementTree as defused_ET
 
 from ..client import SAVE_SETTINGS_ENDPOINT, PapouchHTTPClient
+from ..const import UNKNOWN_LOCATION, UNKNOWN_NAME
 from ..exceptions import (
     DeviceLogicError,
     DeviceParseError,
     DeviceResponseError,
 )
-from ..utils import find_tag
+from ..utils import find_tag, get_box_attribute
 from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,26 +78,15 @@ class PapagoETH(PapouchNetworkDevice, ABC):
     def __init__(
         self,
         api_client: PapouchHTTPClient,
-        settings: str,
-        device_name: str,
-        location: str,
+        settings_root: ET.Element,
+        conf: PapagoConfiguration,
     ) -> None:
         """Constructor for Papago device."""
 
         super().__init__()
-
+        self.settings_root = settings_root
         self.api_client = api_client
-        self.settings_root = defused_ET.fromstring(settings)
-
-        _mac_address = self._get_identifier()
-
-        context_str = f"{device_name} ({location}) - {self.api_client.ip_address}"
-        self._conf = PapagoConfiguration(
-            identifier=_mac_address,
-            name=device_name,
-            location=location,
-            context=context_str,
-        )
+        self._conf = conf
 
         self._parse_initial_settings()
 
@@ -218,17 +208,6 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         if name_val is not None and item_id in self.conf.outputs:
             self.conf.outputs[item_id].name = name_val
-
-    def _get_identifier(self) -> str:
-        """Return the identifier of the device."""
-        box = self.settings_root.find(".//set[@box='12']")
-
-        if box is not None:
-            return str(box.attrib.get("mac", ""))
-
-        raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.conf.context}"
-        )
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
@@ -922,25 +901,35 @@ class PapagoETH_METEO(PapagoETH):
 async def async_setup_network_papago(client: PapouchHTTPClient) -> PapagoETH | None:
     """Async factory for Papago devices."""
     settings = await client.fetch_settings()
-    info = await client.fetch_info()
 
-    root_info = defused_ET.fromstring(info)
-    heartbeat_tag = find_tag(root_info, "heartbeat")
+    settings_root = defused_ET.fromstring(settings)
 
-    if heartbeat_tag is None:
-        raise DeviceParseError("This Papago doesn't have heartbeat tag.")
+    device_name, location = await client.get_device_info()
 
-    device_name = heartbeat_tag.attrib.get("device")
-    location = heartbeat_tag.attrib.get("location", "NONAME")
+    device_name = device_name or UNKNOWN_NAME
+    location = location or UNKNOWN_LOCATION
+
+    context_str = f"{device_name} ({location}) - {client.ip_address}"
+
+    _mac_address = get_box_attribute(
+        settings_root, "12", "mac", context_str, "MAC address"
+    )
+
+    conf = PapagoConfiguration(
+        identifier=_mac_address,
+        name=device_name,
+        location=location,
+        context=context_str,
+    )
 
     if device_name == "Papago 2TH ETH":
-        return PapagoETH_2TH(client, settings, device_name, location)
+        return PapagoETH_2TH(client, settings_root, conf)
     if device_name == "Papago 1TH 2DI 1DO ETH":
-        return PapagoETH_1TH_2DI_1DO(client, settings, device_name, location)
+        return PapagoETH_1TH_2DI_1DO(client, settings_root, conf)
     if device_name == "Papago 5HDI 1DO ETH":
-        return PapagoETH_5HDI_1DO(client, settings, device_name, location)
+        return PapagoETH_5HDI_1DO(client, settings_root, conf)
     if device_name == "Papago METEO ETH":
-        return PapagoETH_METEO(client, settings, device_name, location)
+        return PapagoETH_METEO(client, settings_root, conf)
 
     _LOGGER.warning("Unsupported Papago: %s, location: %s", device_name, location)
     return None

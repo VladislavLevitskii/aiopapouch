@@ -1,29 +1,66 @@
 """File contains helper functions that are used in various places."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING
 
 from pap_spinel import INST_INFO
 
-from .client import PapouchSerialClient
-from .exceptions import DeviceConnectionError
+from .exceptions import DeviceConnectionError, DeviceLogicError, DeviceParseError
+
+if TYPE_CHECKING:
+    from .client import PapouchSerialClient
 
 MAX_ATTEMPTS_ASSIGNING = 3
 
 
-def find_tag(root: ET.Element, tag_name: str) -> ET.Element | None:
+def find_tag(root: ET.Element | None, tag_name: str) -> ET.Element | None:
     """Find element and ignore the namespace."""
+
+    if root is None:
+        return None
+
     for element in root.iter():
         if element.tag.endswith(tag_name):
             return element
     return None
 
 
+def get_box_attribute(
+    root: ET.Element, box_num: str, attr_name: str, context: str, error_context: str
+) -> str:
+    """Helper to extract a specific attribute from a specific box in settings XML."""
+
+    box = root.find(f".//set[@box='{box_num}']")
+
+    if box is not None:
+        value = box.attrib.get(attr_name)
+        if value:
+            return str(value)
+
+        raise DeviceParseError(
+            f"Device: {context} does have a box {box_num} but without {error_context}"
+        )
+
+    raise DeviceParseError(
+        f"Device: {context} doesn't have a box {box_num} with {error_context}"
+    )
+
+
 def parse_device_name(raw_name: bytes) -> str:
     """Parse device name from raw Spinel bytes."""
 
+    if not isinstance(raw_name, bytes):
+        raise DeviceLogicError("Invalid payload type, expected bytes.")
+
     result = raw_name.decode("ascii", errors="ignore")
+
+    if len(result) < 1:
+        raise DeviceParseError("Invalid length of the data, expected more than 0 byte.")
+
     result = result.split(";")[0]
     return result.replace("\x00", "").strip()
 
@@ -31,12 +68,24 @@ def parse_device_name(raw_name: bytes) -> str:
 def parse_device_location(raw_location: bytes) -> str:
     """Parse device location from raw Spinel bytes."""
 
+    if not isinstance(raw_location, bytes):
+        raise DeviceLogicError("Invalid payload type, expected bytes.")
+
     result = raw_location.decode("ascii", errors="ignore")
     return result.replace("\x00", "").strip()
 
 
 def parse_device_serial_number(raw_serial_number: bytes) -> str:
     """Parse device serial number from raw Spinel bytes."""
+
+    if not isinstance(raw_serial_number, bytes):
+        raise DeviceLogicError("Invalid payload type, expected bytes.")
+
+    if len(raw_serial_number) != 4:
+        raise DeviceParseError(
+            f"Invalid payload length for serial number,"
+            f"expected: 4, got {len(raw_serial_number)}"
+        )
 
     product_number = int.from_bytes(raw_serial_number[0:2], "big")
     serial_number_num = int.from_bytes(raw_serial_number[2:4], "big")
