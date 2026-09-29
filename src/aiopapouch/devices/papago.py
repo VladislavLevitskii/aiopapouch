@@ -79,14 +79,27 @@ class PapagoETH(PapouchNetworkDevice, ABC):
         self,
         api_client: PapouchHTTPClient,
         settings_root: ET.Element,
-        conf: PapagoConfiguration,
+        device_name: str,
+        location: str,
     ) -> None:
         """Constructor for Papago device."""
 
         super().__init__()
         self.settings_root = settings_root
         self.api_client = api_client
-        self._conf = conf
+
+        context_str = f"{device_name} ({location}) - {api_client.ip_address}"
+
+        _mac_address = get_box_attribute(
+            settings_root, "12", "mac", context_str, "MAC address"
+        )
+
+        self._conf = PapagoConfiguration(
+            identifier=_mac_address,
+            name=device_name,
+            location=location,
+            context=context_str,
+        )
 
         self._parse_initial_settings()
 
@@ -909,27 +922,14 @@ async def async_setup_network_papago(client: PapouchHTTPClient) -> PapagoETH | N
     device_name = device_name or UNKNOWN_NAME
     location = location or UNKNOWN_LOCATION
 
-    context_str = f"{device_name} ({location}) - {client.ip_address}"
-
-    _mac_address = get_box_attribute(
-        settings_root, "12", "mac", context_str, "MAC address"
-    )
-
-    conf = PapagoConfiguration(
-        identifier=_mac_address,
-        name=device_name,
-        location=location,
-        context=context_str,
-    )
-
     if device_name == "Papago 2TH ETH":
-        return PapagoETH_2TH(client, settings_root, conf)
+        return PapagoETH_2TH(client, settings_root, device_name, location)
     if device_name == "Papago 1TH 2DI 1DO ETH":
-        return PapagoETH_1TH_2DI_1DO(client, settings_root, conf)
+        return PapagoETH_1TH_2DI_1DO(client, settings_root, device_name, location)
     if device_name == "Papago 5HDI 1DO ETH":
-        return PapagoETH_5HDI_1DO(client, settings_root, conf)
+        return PapagoETH_5HDI_1DO(client, settings_root, device_name, location)
     if device_name == "Papago METEO ETH":
-        return PapagoETH_METEO(client, settings_root, conf)
+        return PapagoETH_METEO(client, settings_root, device_name, location)
 
     _LOGGER.warning("Unsupported Papago: %s, location: %s", device_name, location)
     return None

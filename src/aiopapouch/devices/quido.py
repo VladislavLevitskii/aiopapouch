@@ -220,14 +220,24 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         self,
         api_client: PapouchHTTPClient,
         settings_root: ET.Element,
-        conf: QuidoNetworkConfiguration,
+        device_name: str,
+        location: str,
     ) -> None:
         """Constructor for Quido device."""
 
         super().__init__()
         self.api_client = api_client
         self.settings_root = settings_root
-        self._conf = conf
+
+        context = f"{device_name} ({location}) - {api_client.ip_address}"
+
+        mac_address = get_box_attribute(
+            settings_root, "12", "mac", context, "MAC address"
+        )
+
+        self._conf = QuidoNetworkConfiguration(
+            name=device_name, location=location, identifier=mac_address, context=context
+        )
 
         self._parse_initial_settings()
 
@@ -841,15 +851,7 @@ async def async_setup_network_quido(
 
     settings_root = defused_ET.fromstring(settings)
 
-    context = f"{device_name} ({location}) - {client.ip_address}"
-
-    mac_address = get_box_attribute(settings_root, "12", "mac", context, "MAC address")
-
-    conf = QuidoNetworkConfiguration(
-        name=device_name, location=location, identifier=mac_address, context=context
-    )
-
-    return QuidoETH(client, settings_root, conf)
+    return QuidoETH(client, settings_root, device_name, location)
 
 
 async def async_setup_serial_quido(
