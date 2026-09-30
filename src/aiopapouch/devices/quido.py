@@ -805,6 +805,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             val = counters.get(semantic_key)
 
             if val is None:
+                # should be unreachable
                 raise DeviceLogicError(
                     f"Unable to retrieve value from counters dict"
                     f"(even though we placed it there), probable cause: +-1 in iteration,"

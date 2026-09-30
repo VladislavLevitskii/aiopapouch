@@ -93,7 +93,7 @@ async def test_async_setup_network_quido_success(http_client):
     assert device.conf.identifier == "00:80:A3:F7:60:FB"
     assert device.conf.number_inputs == 4
     assert device.conf.number_outputs == 4
-    assert device.conf.temperature_unit == "°C"
+    assert device.conf.temperature_unit == "0"
 
     assert device.conf.counter_states["4"] == "counts_ascending_and_descending_edges"
 
@@ -140,9 +140,9 @@ async def test_parse_initial_settings_errors(http_client):
 @pytest.mark.parametrize(
     "unit, expected",
     [
-        ("C", "°C"),
-        ("F", "°F"),
-        ("K", "K"),
+        ("C", "0"),
+        ("F", "1"),
+        ("K", "2"),
     ],
 )
 async def test_temperature_units_parsing(http_client, unit, expected):
