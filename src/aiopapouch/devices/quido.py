@@ -27,6 +27,7 @@ from .base import (
 
 _LOGGER = logging.getLogger(__name__)
 
+INST_GET_UNIT = 0x1D
 INST_WRITE_OUTPUT = 0x20
 INST_WRITE_OUTPUT_TIME = 0x23
 INST_READ_OUTPUT = 0x30
@@ -110,7 +111,9 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
                 "type": "temperature",
                 "data_type": "temperature",
                 "name": None,
-                "unit": self.conf.temperature_unit,
+                "unit": self._get_unit(
+                    self.TEMPERATURE_SNS_TYPE, self.conf.temperature_unit
+                ),
             }
             for i in range(1, self.conf.number_temp + 1)
         ]
@@ -506,11 +509,11 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
             unit = require_attr(box_elem, "units", "box 8", self.conf.context)
             match unit:
                 case "C":
-                    self.conf.temperature_unit = "°C"
+                    self.conf.temperature_unit = "0"
                 case "F":
-                    self.conf.temperature_unit = "°F"
+                    self.conf.temperature_unit = "1"
                 case "K":
-                    self.conf.temperature_unit = "K"
+                    self.conf.temperature_unit = "2"
                 case _:
                     raise DeviceLogicError(
                         f"Unsupported unit of the thermometer: {unit} in {self.conf.context}"
@@ -644,6 +647,27 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         return result
 
+    async def _process_unit(self) -> None:
+        result_pkt = await self.api_client.write_command(
+            self.conf.address, INST_GET_UNIT, self.conf.context
+        )
+
+        data = result_pkt.data
+
+        if len(data) != 2:
+            raise DeviceParseError(
+                f"Invalid size of the payload for {self.conf.context}. "
+                f"Expected 2 bytes, got {len(data)}."
+            )
+
+        _temperature_unit = data[1]
+        if _temperature_unit < 0 or _temperature_unit > 2:
+            raise DeviceLogicError(
+                f"Unsupported temperature unit: {_temperature_unit} in {self.conf.context}"
+            )
+
+        self.conf.temperature_unit = str(_temperature_unit)
+
     @property
     @override
     def conf(self) -> QuidoSerialConfiguration:
@@ -664,6 +688,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         semantic_key = self._generate_semantic_key(self.TEMPERATURE_SNS_TYPE, "1")
         parsed_data["temperature"][semantic_key] = await self._get_temp()
+
+        await self._process_unit()
 
         return parsed_data
 
