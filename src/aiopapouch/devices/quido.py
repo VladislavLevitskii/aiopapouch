@@ -694,14 +694,28 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         return parsed_data
 
     def _get_counter_mode(self, item_id: str) -> str:
-        result = self.conf.counter_states.get(item_id, self.COUNTER_MODES[0])
+        result = self.conf.counter_states.get(item_id)
+        if result is None:
+            raise DeviceLogicError(f"Unknown item_id: {item_id} in {self.conf.context}")
+
         return str(result)
 
     async def _set_counter_mode(self, item_id: str, mode: str) -> None:
-        mode_index = self.COUNTER_MODES.index(mode)
+        try:
+            mode_index = self.COUNTER_MODES.index(mode)
+        except ValueError as err:
+            raise DeviceLogicError(
+                f"Unknown mode: {mode} in {self.conf.context}"
+            ) from err
 
         result_int = mode_index << 6
-        result_int |= int(item_id)
+
+        try:
+            result_int |= int(item_id)
+        except ValueError as err:
+            raise DeviceLogicError(
+                f"Item_id is not convertable to string, item_id: {item_id} in {self.conf.context}"
+            ) from err
 
         payload = result_int.to_bytes(1)
 
