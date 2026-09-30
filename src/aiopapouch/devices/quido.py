@@ -280,9 +280,10 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                     val_str = require_attr(
                         element, "val", f"temp {item_id}", self.conf.context
                     )
-                    parsed_data["temperature"][semantic_key] = (
-                        float(val_str) if val_str else None
-                    )
+                    try:
+                        parsed_data["temperature"][semantic_key] = float(val_str)
+                    except ValueError:
+                        parsed_data["temperature"][semantic_key] = None
 
                 case "dout":  # codespell:ignore dout
                     val_str = require_attr(
@@ -334,10 +335,10 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         """Return selected option by its id."""
         if category == "counter_mode":
             return self._get_counter_mode(item_id)
-        else:
-            raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.conf.context}"
-            )
+
+        raise DeviceLogicError(
+            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+        )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
@@ -474,50 +475,46 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         global temperature unit used by the device.
         """
 
-        if self.settings_root is None:
-            return
+        input_items = self.settings_root.findall(".//set[@box='10']/item")
+        output_items = self.settings_root.findall(".//set[@box='11']/item")
 
-        try:
-            input_items = self.settings_root.findall(".//set[@box='10']/item")
-            output_items = self.settings_root.findall(".//set[@box='11']/item")
+        self.conf.number_inputs = len(input_items)
+        self.conf.number_outputs = len(output_items)
 
-            self.conf.number_inputs = len(input_items)
-            self.conf.number_outputs = len(output_items)
-
-            for item in input_items:
-                if (item_id := item.get("id")) is None:
-                    continue
-
-                mode_index_str = require_attr(
-                    item, "cnt", f"input {item_id}", self.conf.context
+        for item in input_items:
+            if (item_id := item.get("id")) is None:
+                raise DeviceParseError(
+                    f"Unable to find id attribute in {self.conf.context}"
                 )
 
-                try:
-                    mode_index = int(mode_index_str)
-                    if 0 <= mode_index < len(self.COUNTER_MODES):
-                        self.conf.counter_states[item_id] = self.COUNTER_MODES[
-                            mode_index
-                        ]
-                except ValueError as err:
+            mode_index_str = require_attr(
+                item, "cnt", f"input {item_id}", self.conf.context
+            )
+
+            try:
+                mode_index = int(mode_index_str)
+            except ValueError as err:
+                raise DeviceLogicError(
+                    f"Invalid mode index for item {item_id}: {mode_index_str}, in the device: {self.conf.context}"
+                ) from err
+
+            if 0 <= mode_index < len(self.COUNTER_MODES):
+                self.conf.counter_states[item_id] = self.COUNTER_MODES[mode_index]
+
+        box_elem = self.settings_root.find(".//set[@box='8']")
+        if box_elem is not None:
+            unit = require_attr(box_elem, "units", "box 8", self.conf.context)
+            match unit:
+                case "C":
+                    self.conf.temperature_unit = "°C"
+                case "F":
+                    self.conf.temperature_unit = "°F"
+                case "K":
+                    self.conf.temperature_unit = "K"
+                case _:
                     raise DeviceLogicError(
-                        f"Invalid mode index for item {item_id}: {mode_index_str}, in the device: {self.conf.context}"
-                    ) from err
-
-            box_elem = self.settings_root.find(".//set[@box='8']")
-            if box_elem is not None:
-                unit = require_attr(box_elem, "units", "box 8", self.conf.context)
-                match unit:
-                    case "C":
-                        self.temperature_unit = "°C"
-                    case "F":
-                        self.temperature_unit = "°F"
-                    case _:
-                        self.temperature_unit = "K"
-
-        except (defused_ET.ParseError, ValueError, TypeError) as err:
-            raise DeviceParseError(
-                f"Failed to parse initial settings: {err}, in the device: {self.conf.context}"
-            ) from err
+                        f"Unsupported unit of the thermometer: {unit} in {self.conf.context}"
+                    )
 
     @override
     async def _turn_on_coil(self, item_id: str) -> None:
@@ -774,12 +771,20 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
     @override
     async def _reset_all_counters(self) -> None:
-        counters = await self._get_counters()
+        counters: dict[str, int] = await self._get_counters()
 
-        pairs = []
+        pairs: list[tuple[int, int]] = []
         for i in range(1, self.conf.number_inputs + 1):
             semantic_key = self._generate_semantic_key(self.PULSES, str(i))
-            val = counters.get(semantic_key, 0)
+            val = counters.get(semantic_key)
+
+            if val is None:
+                raise DeviceLogicError(
+                    f"Unable to retrieve value from counters dict"
+                    f"(even though we placed it there), probable cause: +-1 in iteration,"
+                    f"in {self.conf.context}"
+                )
+
             if val > 0:
                 pairs.append((i, val))
 
@@ -789,7 +794,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
             for counter_num, val in chunk:
                 payload.append(counter_num)
-                payload.extend(val.to_bytes(2, "big"))
+                payload.extend(val.to_bytes(2))
 
             if payload:
                 await self.api_client.write_command(
@@ -810,7 +815,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
     @override
     async def _turn_off_coil(self, item_id: str) -> None:
         output_num = int(item_id)
-        payload = output_num.to_bytes(1, "big")
+        payload = output_num.to_bytes(1)
         await self.api_client.write_command(
             self.conf.address, INST_WRITE_OUTPUT, self.conf.context, payload
         )
@@ -876,7 +881,8 @@ async def async_setup_network_quido(
         settings_root = defused_ET.fromstring(settings)
     except defused_ET.ParseError as exception:
         raise DeviceParseError(
-            f"Invalid settings XML: {exception}, in the device: {device_name} in {client.ip_address}"
+            f"Invalid settings XML: {settings},"
+            f"in the device: {device_name} in {client.ip_address}"
         ) from exception
 
     return QuidoETH(client, settings_root, device_name, location)

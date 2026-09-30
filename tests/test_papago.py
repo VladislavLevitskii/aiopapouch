@@ -4,12 +4,9 @@
 
 from unittest.mock import AsyncMock
 
-import defusedxml.ElementTree as defused_ET
 import pytest
 from aiopapouch.devices.papago import (
     PapagoETH_1TH_2DI_1DO,
-    PapagoETH_2TH,
-    PapagoETH_5HDI_1DO,
     async_setup_network_papago,
 )
 from aiopapouch.exceptions import (
@@ -24,8 +21,6 @@ VALID_INFO_XML = """
     admset="0" usrset="0"/>
 </root>
 """
-
-# --- REÁLNÁ DATA Z HARDWARU ---
 
 SETTINGS_2TH_XML = """
 <root>

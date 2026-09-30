@@ -81,10 +81,10 @@ def parse_device_serial_number(raw_serial_number: bytes) -> str:
     if not isinstance(raw_serial_number, bytes):
         raise DeviceLogicError("Invalid payload type, expected bytes.")
 
-    if len(raw_serial_number) != 4:
+    if len(raw_serial_number) != 8:
         raise DeviceParseError(
             f"Invalid payload length for serial number,"
-            f"expected: 4, got {len(raw_serial_number)}"
+            f"expected: 8, got {len(raw_serial_number)}"
         )
 
     product_number = int.from_bytes(raw_serial_number[0:2], "big")

@@ -112,8 +112,8 @@ def test_parse_device_location_invalid_type(invalid_input):
 @pytest.mark.parametrize(
     "raw_bytes, expected",
     [
-        (b"\x00\x7b\xb2\x6e", "0123/45678"),
-        (b"\x00\x01\x00\x01", "0001/1"),
+        (b"\x00\x7b\xb2\x6e\x00\x14\x78\x91", "0123/45678"),
+        (b"\x00\x01\x00\x01\x00\x14\x78\x91", "0001/1"),
     ],
 )
 def test_parse_device_serial_number_success(raw_bytes, expected):
@@ -149,7 +149,7 @@ async def test_get_device_details():
 
     man_packet = MagicMock()
     man_packet.adr = 5
-    man_packet.data = b"\x00\x7b\xb2\x6e"
+    man_packet.data = b"\x00\x7b\xb2\x6e\x00\x14\x78\x91"
     api_client.get_man_data.return_value = man_packet
 
     info_packet = MagicMock()
