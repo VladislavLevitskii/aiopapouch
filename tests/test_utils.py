@@ -12,12 +12,13 @@ from aiopapouch.exceptions import (
     DeviceParseError,
 )
 from aiopapouch.utils import (
-    _get_device_details,
     assign_next_available_address,
     find_tag,
+    get_device_details,
     parse_device_location,
     parse_device_name,
     parse_device_serial_number,
+    require_attr,
 )
 
 
@@ -155,7 +156,7 @@ async def test_get_device_details():
     info_packet.data = b"Quido 10/1;\x00"
     api_client.get_info.return_value = info_packet
 
-    name, sn, adr = await _get_device_details(api_client, address=5)
+    name, sn, adr = await get_device_details(api_client, address=5)
 
     assert name == "Quido 10/1"
     assert sn == "0123/45678"
@@ -163,7 +164,7 @@ async def test_get_device_details():
 
 
 @patch("aiopapouch.utils.asyncio.sleep")
-@patch("aiopapouch.utils._get_device_details")
+@patch("aiopapouch.utils.get_device_details")
 async def test_assign_next_available_address_first_try(mock_details, mock_sleep):
     """Test when the very first scanned address (250) is available."""
     api_client = AsyncMock()
@@ -182,7 +183,7 @@ async def test_assign_next_available_address_first_try(mock_details, mock_sleep)
 
 
 @patch("aiopapouch.utils.asyncio.sleep")
-@patch("aiopapouch.utils._get_device_details")
+@patch("aiopapouch.utils.get_device_details")
 async def test_assign_next_available_address_skip_used(mock_details, mock_sleep):
     """Test skipping addresses that are in used_addresses or respond to ping."""
     api_client = AsyncMock()
@@ -234,7 +235,7 @@ async def test_assign_next_available_address_all_occupied():
 
 
 @patch("aiopapouch.utils.asyncio.sleep")
-@patch("aiopapouch.utils._get_device_details")
+@patch("aiopapouch.utils.get_device_details")
 async def test_assign_next_available_address_details_timeout(mock_details, mock_sleep):
     """Test when set_address succeeds, but fetching details immediately fails."""
 
@@ -255,7 +256,7 @@ async def test_assign_next_available_address_details_timeout(mock_details, mock_
 
 
 @patch("aiopapouch.utils.asyncio.sleep")
-@patch("aiopapouch.utils._get_device_details")
+@patch("aiopapouch.utils.get_device_details")
 async def test_assign_next_available_address_parse_error_bubbles_up(
     mock_details, mock_sleep
 ):
@@ -269,3 +270,14 @@ async def test_assign_next_available_address_parse_error_bubbles_up(
 
     with pytest.raises(DeviceParseError):
         await assign_next_available_address(api_client, [], "0123/45678")
+
+
+def test_require_attr():
+    """Negative test of the require attribute function."""
+
+    element = ET.Element("test", {"valid": "1"})
+
+    assert require_attr(element, "valid", "ctx", "dev") == "1"
+
+    with pytest.raises(DeviceParseError):
+        require_attr(element, "missing", "ctx", "dev")

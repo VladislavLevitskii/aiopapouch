@@ -418,5 +418,24 @@ async def test_get_device_mode_missing_heartbeat(http_client):
 )
 def test_check_exceptions_device_web_mode(http_client, device_name, expected):
     """Test matching logic for devices requiring web mode fallback."""
+
     result = http_client._check_exceptions_device_web_mode(device_name)
     assert result is expected
+
+
+async def test_get_device_mode_invalid_xml(http_client):
+    """Test that DeviceParseError is raised when info XML is invalid (ParseError)."""
+
+    http_client.fetch_info = AsyncMock(return_value="NOT_XML_DATA")
+
+    with pytest.raises(DeviceParseError):
+        await http_client.get_device_mode()
+
+
+async def test_get_box_attribute_invalid_xml(http_client):
+    """Test that DeviceParseError is raised when settings XML is invalid (ParseError)."""
+
+    http_client.fetch_settings = AsyncMock(return_value="NOT_XML_DATA")
+
+    with pytest.raises(DeviceParseError):
+        await http_client._get_box_attribute("1", "comm", "Error Context")

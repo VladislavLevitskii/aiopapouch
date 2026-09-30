@@ -15,7 +15,7 @@ from ..exceptions import (
     DeviceParseError,
     DeviceResponseError,
 )
-from ..utils import find_tag, get_box_attribute
+from ..utils import find_tag, get_box_attribute, require_attr
 from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,7 +106,13 @@ class PapagoETH(PapouchNetworkDevice, ABC):
     @override
     async def get_fresh_data(self) -> dict:
         xml_data = await self.api_client.fetch_data()
-        root = defused_ET.fromstring(xml_data)
+
+        try:
+            root = defused_ET.fromstring(xml_data)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse fresh data in {self.conf.context}"
+            ) from err
 
         parsed_data: dict[str, dict[str, Any]] = {
             "sensor": {},
@@ -154,9 +160,27 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             if sns_type is None:
                 break
 
+            if sns_type not in self.TYPE_MAPPING:
+                # the idea behind that is if there will be a new firmware
+                # and there will be added a new "virtual" sensor type
+                # plain exception will crash whole HA integration
+
+                _LOGGER.warning(
+                    "Unknown sensor type '%s' ignored in %s.",
+                    sns_type,
+                    self.conf.context,
+                )
+                idx += 1
+                continue
+
             item_id = base_item_id if idx == 1 else f"{base_item_id}_{idx}"
-            unit_code = element.attrib.get(f"unit{suffix}", "0")
-            status = element.attrib.get(f"status{suffix}", "0")
+
+            unit_code = require_attr(
+                element, f"unit{suffix}", f"sensor {item_id}", self.conf.context
+            )
+            status = require_attr(
+                element, f"status{suffix}", f"sensor {item_id}", self.conf.context
+            )
 
             self.conf.sensors[base_item_id]["sub_sensors"][item_id] = {
                 "type": sns_type,
@@ -168,7 +192,9 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             if status in ("1", "4"):
                 parsed_data["sensor"][semantic_key] = None
             else:
-                raw_val = element.attrib.get(f"val{suffix}", "0")
+                raw_val = require_attr(
+                    element, f"val{suffix}", f"sensor {item_id}", self.conf.context
+                )
                 try:
                     parsed_data["sensor"][semantic_key] = float(raw_val)
                 except ValueError:
@@ -189,11 +215,10 @@ class PapagoETH(PapouchNetworkDevice, ABC):
         if name and item_id in self.conf.inputs:
             self.conf.inputs[item_id].name = name
 
-        bin_val = element.attrib.get("bin")
-        if bin_val is not None:
-            parsed_data["input"][item_id] = bin_val == "1"
+        bin_val = require_attr(element, "bin", f"input {item_id}", self.conf.context)
+        parsed_data["input"][item_id] = bin_val == "1"
 
-        val_str = element.attrib.get("val")
+        val_str = require_attr(element, "val", f"counter {item_id}", self.conf.context)
         semantic_key = self._generate_semantic_key(self.PULSES, item_id)
 
         if val_str is not None:
@@ -214,8 +239,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         bin_val = element.attrib.get("bin")
 
-        if bin_val is not None:
-            parsed_data["switch"][item_id] = int(bin_val)
+        bin_val = require_attr(element, "bin", f"output {item_id}", self.conf.context)
+        parsed_data["switch"][item_id] = int(bin_val)
 
         name_val = element.attrib.get("name")
 
@@ -293,9 +318,6 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             for sub_id, sub_data in sensor_data["sub_sensors"].items():
                 sns_type = sub_data["type"]
                 unit_code = sub_data["unit"]
-
-                if sns_type not in self.TYPE_MAPPING:
-                    continue
 
                 semantic_key = self._generate_semantic_key(sns_type, sub_id)
                 data_type = self.TYPE_MAPPING[sns_type]
@@ -408,7 +430,13 @@ class PapagoETH(PapouchNetworkDevice, ABC):
         await self._check_auto_detect_sensor_response(response)
 
     async def _check_auto_detect_sensor_response(self, response: str) -> None:
-        root = defused_ET.fromstring(response)
+
+        try:
+            root = defused_ET.fromstring(response)
+        except defused_ET.ParseError as exception:
+            raise DeviceParseError(
+                f"Invalid response XML: {exception}, in the device: {self.conf.context}"
+            ) from exception
 
         result_tag = find_tag(root, "result")
         if result_tag is not None and result_tag.attrib.get("status") not in ("1", "4"):
@@ -496,22 +524,24 @@ class PapagoETH(PapouchNetworkDevice, ABC):
     ) -> None:
         try:
             root = defused_ET.fromstring(response_text)
-            result_tag = find_tag(root, "result")
-
-            if result_tag is None:
-                raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
-                )
-
-            if result_tag.attrib.get("status") != expected_status:
-                raise DeviceResponseError(
-                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
-                )
-
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
                 f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
             ) from exception
+
+        result_tag = find_tag(root, "result")
+
+        if result_tag is None:
+            raise DeviceParseError(
+                f"Response doesn't have result tag!, in the device: {self.conf.context}"
+            )
+
+        status_val = require_attr(result_tag, "status", "result tag", self.conf.context)
+
+        if status_val != expected_status:
+            raise DeviceResponseError(
+                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+            )
 
     async def _save_setting(self, xml_payload: str) -> None:
         resp_start = await self.api_client.write_command(
@@ -687,11 +717,14 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         counter_id = str(box_num - input_base + 1)
         name = element.attrib.get("name", f"Input {counter_id}")
-        unit = element.attrib.get("unit", "")
-        dec = element.attrib.get("dec", "0")
-        trigger_impulse_count = element.attrib.get("src", "1")
-        value_to_add = element.attrib.get("dst", "1")
-        type_cnt = element.attrib.get("enb", "0")
+
+        unit = require_attr(element, "unit", f"box {box_num}", self.conf.context)
+        dec = require_attr(element, "dec", f"box {box_num}", self.conf.context)
+        trigger_impulse_count = require_attr(
+            element, "src", f"box {box_num}", self.conf.context
+        )
+        value_to_add = require_attr(element, "dst", f"box {box_num}", self.conf.context)
+        type_cnt = require_attr(element, "enb", f"box {box_num}", self.conf.context)
 
         self.conf.inputs[counter_id] = InputSettings(
             name,
@@ -708,7 +741,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
     ) -> None:
         """Helper for parsing standard sensor ports from settings.xml."""
         sensor_id = str(box_num - sensor_base + 1)
-        sns_type = element.attrib.get("type", "0")
+
+        sns_type = require_attr(element, "type", f"box {box_num}", self.conf.context)
         sensor_name = element.attrib.get("name", f"Sensor {sensor_id}")
 
         self.conf.sensors_types[sensor_id] = sns_type
@@ -915,7 +949,12 @@ async def async_setup_network_papago(client: PapouchHTTPClient) -> PapagoETH | N
     """Async factory for Papago devices."""
     settings = await client.fetch_settings()
 
-    settings_root = defused_ET.fromstring(settings)
+    try:
+        settings_root = defused_ET.fromstring(settings)
+    except defused_ET.ParseError as exception:
+        raise DeviceParseError(
+            f"Invalid settings XML: {exception}, during creation of Papago"
+        ) from exception
 
     device_name, location = await client.get_device_info()
 

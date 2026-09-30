@@ -128,7 +128,12 @@ class PapouchHTTPClient:
         """Helper to extract a specific attribute from a specific box in settings."""
 
         settings = await self.fetch_settings()
-        root = defused_ET.fromstring(settings)
+        try:
+            root = defused_ET.fromstring(settings)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse settings.xml from {self.ip_address}"
+            ) from err
         return get_box_attribute(
             root, box_num, attr_name, self.ip_address, error_context
         )
@@ -202,7 +207,12 @@ class PapouchHTTPClient:
     async def get_device_mode(self) -> int:
         """Function is used for the resolving the mode of the device."""
         info_xml = await self.fetch_info()
-        root = defused_ET.fromstring(info_xml)
+        try:
+            root = defused_ET.fromstring(info_xml)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse is.xml from {self.ip_address}"
+            ) from err
 
         heartbeat_tag = None
         for element in root.iter():

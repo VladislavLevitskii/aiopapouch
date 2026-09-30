@@ -116,7 +116,7 @@ async def assign_next_available_address(
 
             await asyncio.sleep(2)
 
-            device_name, _, _ = await _get_device_details(api_client, addr)
+            device_name, _, _ = await get_device_details(api_client, addr)
 
             return addr, device_name
 
@@ -130,7 +130,7 @@ async def assign_next_available_address(
     return None, None
 
 
-async def _get_device_details(
+async def get_device_details(
     api_client: PapouchSerialClient, address: int
 ) -> tuple[str, str, int]:
     """Test device connection and return name, serial number and device's address (if broadcast was used)."""
@@ -147,3 +147,16 @@ async def _get_device_details(
     device_name = parse_device_name(pkt_info.data)
 
     return device_name, serial_number, _address
+
+
+def require_attr(
+    element: ET.Element, attr_name: str, tag_context: str, context: str
+) -> str:
+    """Strictly get an attribute from XML element or raise DeviceParseError."""
+    val = element.attrib.get(attr_name)
+    if val is None:
+        raise DeviceParseError(
+            f"Missing required attribute '{attr_name}' in <{element.tag}> ({tag_context}) "
+            f"for device: {context}"
+        )
+    return val

@@ -9,8 +9,9 @@ from typing import Any, override
 import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
+from ..const import UNKNOWN_LOCATION, UNKNOWN_NAME
 from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
-from ..utils import find_tag
+from ..utils import find_tag, require_attr
 from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,25 +33,34 @@ class TH2E(PapouchNetworkDevice):
     def conf(self) -> TH2EConfiguration:
         return self._conf
 
-    def __init__(self, api_client: PapouchHTTPClient, settings: str, info: str) -> None:
+    def __init__(
+        self,
+        api_client: PapouchHTTPClient,
+        settings: str,
+        device_name: str,
+        location: str,
+        mac_address: str,
+    ) -> None:
         """Constructor for TH2E device."""
 
         super().__init__()
 
         self.api_client = api_client
 
-        self.info_root = defused_ET.fromstring(info)
-        self.settings_root = defused_ET.fromstring(settings)
+        try:
+            self.settings_root = defused_ET.fromstring(settings)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Invalid XML passed to TH2E initialization: {err}"
+            ) from err
 
-        name = self._get_name()
-        location = self._get_location()
-        mac_address = self._get_identifier()
+        context_str = f"{device_name} ({location}) - {self.api_client.ip_address}"
 
         self._conf = TH2EConfiguration(
-            name=name,
+            name=device_name,
             location=location,
             identifier=mac_address,
-            context=f"{name} ({location}) - {self.api_client.ip_address}",
+            context=context_str,
         )
 
     @override
@@ -61,7 +71,14 @@ class TH2E(PapouchNetworkDevice):
         """
 
         xml_data = await self.api_client.fetch_data()
-        root = defused_ET.fromstring(xml_data)
+
+        try:
+            root = defused_ET.fromstring(xml_data)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse fresh data in {self.conf.context}"
+            ) from err
+
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
         status_tag = find_tag(root, "status")
@@ -71,20 +88,38 @@ class TH2E(PapouchNetworkDevice):
                 f"The device doesn't have box status tag in fresh.xml, device: {self.conf.context}"
             )
 
-        self.conf.sensor_type = int(status_tag.attrib.get("typesens", "0"))
+        _sensor_type = require_attr(
+            status_tag, "typesens", f"status tag {status_tag.tag}", self.conf.context
+        )
+
+        try:
+            self.conf.sensor_type = int(_sensor_type)
+        except ValueError as err:
+            raise DeviceParseError(
+                f"Sensor type '{_sensor_type}' is not int in the device {self.conf.context}"
+            ) from err
 
         for element in root.iter():
             if not element.tag.endswith("sns"):
                 continue
 
-            item_id = element.attrib.get("id")
-            sns_type = element.attrib.get("type")
-            unit_code = element.attrib.get("unit", "0")
+            item_id = require_attr(
+                element, "id", f"sensor {element.tag}", self.conf.context
+            )
+            sns_type = require_attr(
+                element, "type", f"sensor {item_id}", self.conf.context
+            )
+            unit_code = require_attr(
+                element, "unit", f"sensor {item_id}", self.conf.context
+            )
 
-            if not item_id or not sns_type:
-                raise DeviceParseError(
-                    f"Device: {self.conf.context}, doesn't have id or sensor type"
+            if sns_type not in self.TYPE_MAPPING:
+                _LOGGER.warning(
+                    "Unknown sensor type '%s' ignored in %s.",
+                    sns_type,
+                    self.conf.context,
                 )
+                continue
 
             semantic_key = self._generate_semantic_key(sns_type, item_id)
 
@@ -92,7 +127,9 @@ class TH2E(PapouchNetworkDevice):
             if unit_code == "3":
                 unit_code = "0"
 
-            status = element.attrib.get("status", "0")
+            status = require_attr(
+                element, "status", f"sensor {item_id}", self.conf.context
+            )
 
             self.conf.sensors[item_id] = {
                 "id": item_id,
@@ -103,36 +140,15 @@ class TH2E(PapouchNetworkDevice):
             if status in ("1", "4"):
                 parsed_data["sensor"][semantic_key] = None
             else:
-                parsed_data["sensor"][semantic_key] = float(
-                    element.attrib.get("val", "0")
+                raw_val = require_attr(
+                    element, "val", f"sensor {item_id}", self.conf.context
                 )
+                try:
+                    parsed_data["sensor"][semantic_key] = float(raw_val)
+                except ValueError:
+                    parsed_data["sensor"][semantic_key] = None
 
         return parsed_data
-
-    def _get_location(self) -> str:
-        """Return the location of the device."""
-        heartbeat = find_tag(self.info_root, "heartbeat")
-        if heartbeat is not None:
-            return heartbeat.attrib.get("location", "")
-        return ""
-
-    def _get_name(self) -> str:
-        """Return the name of the device."""
-        heartbeat = find_tag(self.info_root, "heartbeat")
-        if heartbeat is not None:
-            return heartbeat.attrib.get("device", "")
-        return ""
-
-    def _get_identifier(self) -> str:
-        """Return the identifier of the device."""
-        box = self.settings_root.find(".//set[@box='12']")
-
-        if box is not None:
-            return str(box.attrib.get("mac", ""))
-
-        raise DeviceParseError(
-            f"The device doesn't have box 12 with MAC address, device: {self.conf.context}"
-        )
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
@@ -157,15 +173,14 @@ class TH2E(PapouchNetworkDevice):
             sns_type = sns["type"]
             unit_code = sns["unit"]
 
-            if sns_type in self.TYPE_MAPPING:
-                sensors.append({
-                    "item_id": item_id,
-                    "value_key": self._generate_semantic_key(sns_type, item_id),
-                    "type": "sensor",
-                    "data_type": self.TYPE_MAPPING[sns_type],
-                    "name": None,
-                    "unit": self._get_unit(sns_type, unit_code),
-                })
+            sensors.append({
+                "item_id": item_id,
+                "value_key": self._generate_semantic_key(sns_type, item_id),
+                "type": "sensor",
+                "data_type": self.TYPE_MAPPING[sns_type],
+                "name": None,
+                "unit": self._get_unit(sns_type, unit_code),
+            })
 
         return sensors
 
@@ -287,23 +302,34 @@ class TH2E(PapouchNetworkDevice):
     ) -> int:
         try:
             root = defused_ET.fromstring(response_text)
-            result_tag = find_tag(root, "result")
-
-            if result_tag is None:
-                raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
-                )
-
-            if result_tag.attrib.get("status") != expected_status:
-                raise DeviceResponseError(
-                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
-                )
-
-            return int(result_tag.attrib.get("typesens", "0"))
-
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
                 f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
+            ) from exception
+
+        result_tag = find_tag(root, "result")
+
+        if result_tag is None:
+            raise DeviceParseError(
+                f"Response doesn't have result tag!, in the device: {self.conf.context}"
+            )
+
+        status_val = require_attr(result_tag, "status", "result tag", self.conf.context)
+
+        if status_val != expected_status:
+            raise DeviceResponseError(
+                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+            )
+
+        typesens_str = require_attr(
+            result_tag, "typesens", "result tag", self.conf.context
+        )
+
+        try:
+            return int(typesens_str)
+        except ValueError as exception:
+            raise DeviceParseError(
+                f"Invalid 'typesens' value '{typesens_str}' in device: {self.conf.context}"
             ) from exception
 
     @override
@@ -330,15 +356,21 @@ class TH2E(PapouchNetworkDevice):
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
         if category == "sensor_type":
-            return self.SENSOR_TYPES[self.conf.sensor_type]
-        else:
-            raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.conf.context}"
-            )
+            if 0 <= self.conf.sensor_type < len(self.SENSOR_TYPES):
+                return self.SENSOR_TYPES[self.conf.sensor_type]
+            return None
+
+        raise DeviceLogicError(
+            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+        )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
-        type_idx = self.SENSOR_TYPES.index(option)
+        try:
+            type_idx = self.SENSOR_TYPES.index(option)
+        except ValueError:
+            return
+
         await self._set_sensor_type(type_idx)
         self.conf.sensor_type = type_idx
 
@@ -354,22 +386,24 @@ class TH2E(PapouchNetworkDevice):
         def pad_ip(ip_str: str) -> str:
             return ".".join(part.zfill(3) for part in ip_str.split("."))
 
+        ctx = self.conf.context
         save_root = ET.Element("root")
+
         ET.SubElement(
             save_root,
             "set",
             box="1",
-            ip1=pad_ip(box.get("ip", "0.0.0.0")),
-            ip2=pad_ip(box.get("mask", "0.0.0.0")),
-            ip3=pad_ip(box.get("gate", "0.0.0.0")),
-            ip5=pad_ip(box.get("dip", "0.0.0.0")),
-            num2=box.get("wport", "80").zfill(5),
+            ip1=pad_ip(require_attr(box, "ip", "box 1", ctx)),
+            ip2=pad_ip(require_attr(box, "mask", "box 1", ctx)),
+            ip3=pad_ip(require_attr(box, "gate", "box 1", ctx)),
+            ip5=pad_ip(require_attr(box, "dip", "box 1", ctx)),
+            num2=require_attr(box, "wport", "box 1", ctx).zfill(5),
             num4="3",
-            num5=box.get("com", "0"),
-            num7=box.get("mport", "502").zfill(5),
-            num1=box.get("lport", "10001").zfill(5),
-            ip4=pad_ip(box.get("rip", "0.0.0.0")),
-            num3=box.get("rport", "0").zfill(5),
+            num5=require_attr(box, "com", "box 1", ctx),
+            num7=require_attr(box, "mport", "box 1", ctx).zfill(5),
+            num1=require_attr(box, "lport", "box 1", ctx).zfill(5),
+            ip4=pad_ip(require_attr(box, "rip", "box 1", ctx)),
+            num3=require_attr(box, "rport", "box 1", ctx).zfill(5),
         )
 
         xml_payload = ET.tostring(save_root, encoding="unicode")
@@ -385,6 +419,11 @@ class TH2E(PapouchNetworkDevice):
 async def async_setup_network_th2e(client: PapouchHTTPClient) -> TH2E:
     """Async factory for TH2E device."""
     settings = await client.fetch_settings()
-    info = await client.fetch_info()
 
-    return TH2E(client, settings, info)
+    device_name, location = await client.get_device_info()
+    device_name = device_name or UNKNOWN_NAME
+    location = location or UNKNOWN_LOCATION
+
+    mac_address = await client.get_device_mac()
+
+    return TH2E(client, settings, device_name, location, mac_address)

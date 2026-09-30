@@ -14,7 +14,7 @@ from pap_spinel import ACK_FAILURE
 from ..client import PapouchHTTPClient, PapouchSerialClient
 from ..const import INST_READ_TEMPERATURE, UNKNOWN_LOCATION, UNKNOWN_NAME
 from ..exceptions import DeviceLogicError, DeviceParseError
-from ..utils import get_box_attribute
+from ..utils import get_box_attribute, require_attr
 from .base import (
     ClientT,
     PapouchConfiguration,
@@ -250,7 +250,14 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
     async def get_fresh_data(self) -> dict:
         """Defines parser method for QuidoETH."""
         xml_data = await self.api_client.fetch_data()
-        root = defused_ET.fromstring(xml_data)
+
+        try:
+            root = defused_ET.fromstring(xml_data)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse fresh data in {self.conf.context}"
+            ) from err
+
         parsed_data: dict[str, dict[str, Any]] = {
             "temperature": {},
             "input": {},
@@ -270,25 +277,38 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                     semantic_key = self._generate_semantic_key(
                         self.TEMPERATURE_SNS_TYPE, item_id
                     )
-                    val_str = element.attrib.get("val")
+                    val_str = require_attr(
+                        element, "val", f"temp {item_id}", self.conf.context
+                    )
                     parsed_data["temperature"][semantic_key] = (
                         float(val_str) if val_str else None
                     )
 
                 case "dout":  # codespell:ignore dout
-                    val_str = element.attrib.get("val")
+                    val_str = require_attr(
+                        element, "val", f"dout {item_id}", self.conf.context
+                    )
                     parsed_data["switch"][item_id] = int(val_str) if val_str else None
 
                 case "din":
-                    val_str = element.attrib.get("val")
-                    parsed_data["input"][item_id] = int(val_str) if val_str else None
+                    val_str = require_attr(
+                        element, "val", f"din {item_id}", self.conf.context
+                    )
+                    cnt_str = require_attr(
+                        element, "cnt", f"din counter {item_id}", self.conf.context
+                    )
+
+                    try:
+                        parsed_data["input"][item_id] = int(val_str)
+                    except ValueError:
+                        parsed_data["input"][item_id] = None
 
                     semantic_key = self._generate_semantic_key(self.PULSES, item_id)
 
-                    val_str = element.attrib.get("cnt")
-                    parsed_data["counter"][semantic_key] = (
-                        int(val_str) if val_str else None
-                    )
+                    try:
+                        parsed_data["counter"][semantic_key] = int(cnt_str)
+                    except ValueError:
+                        parsed_data["counter"][semantic_key] = None
 
         return parsed_data
 
@@ -342,23 +362,24 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
             return ".".join(part.zfill(3) for part in ip_str.split("."))
 
         save_root = ET.Element("root")
+        ctx = self.conf.context
         ET.SubElement(
             save_root,
             "set",
             box="1",
-            ip1=pad_ip(box.get("ip", "0.0.0.0")),
-            ip2=pad_ip(box.get("mask", "0.0.0.0")),
-            ip3=pad_ip(box.get("gate", "0.0.0.0")),
-            ip4=pad_ip(box.get("dip", "0.0.0.0")),
-            ip5=pad_ip(box.get("rip", "0.0.0.0")),
-            num1=box.get("wport", "80").zfill(5),
-            num2=box.get("lport", "10001").zfill(5),
+            ip1=pad_ip(require_attr(box, "ip", "network box 1", ctx)),
+            ip2=pad_ip(require_attr(box, "mask", "network box 1", ctx)),
+            ip3=pad_ip(require_attr(box, "gate", "network box 1", ctx)),
+            ip4=pad_ip(require_attr(box, "dip", "network box 1", ctx)),
+            ip5=pad_ip(require_attr(box, "rip", "network box 1", ctx)),
+            num1=require_attr(box, "wport", "network box 1", ctx).zfill(5),
+            num2=require_attr(box, "lport", "network box 1", ctx).zfill(5),
             num3="3",
-            num4=box.get("rport", "0").zfill(5),
-            num5=box.get("mport", "502").zfill(5),
-            num6=box.get("dhcp", "0"),
-            num7=box.get("single", "0"),
-            num8=box.get("tcpto", "0").zfill(5),
+            num4=require_attr(box, "rport", "network box 1", ctx).zfill(5),
+            num5=require_attr(box, "mport", "network box 1", ctx).zfill(5),
+            num6=require_attr(box, "dhcp", "network box 1", ctx),
+            num7=require_attr(box, "single", "network box 1", ctx),
+            num8=require_attr(box, "tcpto", "network box 1", ctx).zfill(5),
         )
 
         xml_payload = ET.tostring(save_root, encoding="unicode")
@@ -413,12 +434,12 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                 f"Invalid counter mode: {mode}, in the device: {self.conf.context}"
             ) from err
 
-        on_val = item.get("on", "0")
-        off_val = item.get("off", "0")
-        hide_val = item.get("hide", "0")
-        change_val = item.get("change", "0")
-
-        sampl_val = item.get("sampl", "20").zfill(5)
+        ctx = self.conf.context
+        on_val = require_attr(item, "on", f"counter mode {item_id}", ctx)
+        off_val = require_attr(item, "off", f"counter mode {item_id}", ctx)
+        hide_val = require_attr(item, "hide", f"counter mode {item_id}", ctx)
+        change_val = require_attr(item, "change", f"counter mode {item_id}", ctx)
+        sampl_val = require_attr(item, "sampl", f"counter mode {item_id}", ctx).zfill(5)
         name_val = item.get("name", "")
 
         save_root = ET.Element("root")
@@ -467,7 +488,9 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                 if (item_id := item.get("id")) is None:
                     continue
 
-                mode_index_str = item.get("cnt", "0")
+                mode_index_str = require_attr(
+                    item, "cnt", f"input {item_id}", self.conf.context
+                )
 
                 try:
                     mode_index = int(mode_index_str)
@@ -482,7 +505,7 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
 
             box_elem = self.settings_root.find(".//set[@box='8']")
             if box_elem is not None:
-                unit = box_elem.get("units")
+                unit = require_attr(box_elem, "units", "box 8", self.conf.context)
                 match unit:
                     case "C":
                         self.temperature_unit = "°C"
@@ -849,7 +872,12 @@ async def async_setup_network_quido(
     device_name = device_name or UNKNOWN_NAME
     location = location or UNKNOWN_LOCATION
 
-    settings_root = defused_ET.fromstring(settings)
+    try:
+        settings_root = defused_ET.fromstring(settings)
+    except defused_ET.ParseError as exception:
+        raise DeviceParseError(
+            f"Invalid settings XML: {exception}, in the device: {device_name} in {client.ip_address}"
+        ) from exception
 
     return QuidoETH(client, settings_root, device_name, location)
 

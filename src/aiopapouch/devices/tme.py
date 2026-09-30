@@ -10,8 +10,9 @@ from typing import Any, override
 import defusedxml.ElementTree as defused_ET
 
 from ..client import PapouchHTTPClient
+from ..const import UNKNOWN_LOCATION, UNKNOWN_NAME
 from ..exceptions import DeviceLogicError, DeviceParseError, DeviceResponseError
-from ..utils import find_tag
+from ..utils import find_tag, require_attr
 from .base import PapouchNetworkConfiguration, PapouchNetworkDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,30 +34,48 @@ class TMEBase(PapouchNetworkDevice, ABC):
     def conf(self) -> TMEConfiguration:
         return self._conf
 
-    def __init__(self, api_client: PapouchHTTPClient, info: str, settings: str) -> None:
+    def __init__(
+        self,
+        api_client: PapouchHTTPClient,
+        settings: str,
+        device_name: str,
+        location: str,
+        mac_address: str,
+    ) -> None:
         """Constructor for TME device."""
+
+        super().__init__()
 
         self.api_client = api_client
 
-        self.info_root = defused_ET.fromstring(info)
-        self.settings_root = defused_ET.fromstring(settings)
+        try:
+            self.settings_root = defused_ET.fromstring(settings)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Invalid XML passed to TME initialization: {err}"
+            ) from err
 
-        name = self._get_name()
-        location = self._get_location()
-        mac_address = self._get_identifier()
+        context_str = f"{device_name} ({location}) - {self.api_client.ip_address}"
 
         self._conf = TMEConfiguration(
-            name=name,
+            name=device_name,
             location=location,
             identifier=mac_address,
-            context=f"{name} ({location}) - {self.api_client.ip_address}",
+            context=context_str,
         )
 
     @override
     async def get_fresh_data(self) -> dict:
         """Parse fresh data. Extracts global unit and delegates to specific parsers."""
         xml_data = await self.api_client.fetch_data()
-        root = defused_ET.fromstring(xml_data)
+
+        try:
+            root = defused_ET.fromstring(xml_data)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse fresh data in {self.conf.context}"
+            ) from err
+
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
         status_tag = find_tag(root, "status")
@@ -78,32 +97,6 @@ class TMEBase(PapouchNetworkDevice, ABC):
         global_unit: str,
     ) -> None:
         """Must be implemented by subclasses to handle specific XML structure."""
-
-    def _get_location(self) -> str:
-        """Return the location of the device."""
-        heartbeat = find_tag(self.info_root, "heartbeat")
-        if heartbeat is not None:
-            return heartbeat.attrib.get("location", "")
-        return ""
-
-    def _get_name(self) -> str:
-        """Return the name of the device."""
-        heartbeat = find_tag(self.info_root, "heartbeat")
-        if heartbeat is not None:
-            return heartbeat.attrib.get("device", "")
-        return ""
-
-    def _get_identifier(self) -> str:
-        """Return the identifier of the device."""
-
-        box_12 = self.settings_root.find(".//set[@box='12']")
-        if box_12 is not None and "mac" in box_12.attrib:
-            return str(box_12.attrib["mac"])
-
-        raise DeviceParseError(
-            f"The device doesn't have a MAC address in settings.xml nor fresh.xml, "
-            f"device: {self.conf.context}"
-        )
 
     @override
     def get_supported_buttons(self) -> list[dict[str, Any]]:
@@ -131,24 +124,23 @@ class TMEBase(PapouchNetworkDevice, ABC):
                 sns_type = sub_data["type"]
                 unit_val = sub_data["unit"]
 
-                if sns_type in self.TYPE_MAPPING:
-                    unit_str = (
-                        self._get_unit(sns_type, unit_val)
-                        if sns_type in self.UNIT_MAP
-                        else unit_val
-                    )
+                unit_str = (
+                    self._get_unit(sns_type, unit_val)
+                    if sns_type in self.UNIT_MAP
+                    else unit_val
+                )
 
-                    if sensor_name == "":
-                        sensor_name = f"Sensor {sub_id}"
+                if not sensor_name:
+                    sensor_name = f"Sensor {sub_id}"
 
-                    sensors.append({
-                        "item_id": sub_id,
-                        "value_key": self._generate_semantic_key(sns_type, sub_id),
-                        "type": "sensor",
-                        "data_type": self.TYPE_MAPPING[sns_type],
-                        "name": sensor_name,
-                        "unit": unit_str,
-                    })
+                sensors.append({
+                    "item_id": sub_id,
+                    "value_key": self._generate_semantic_key(sns_type, sub_id),
+                    "type": "sensor",
+                    "data_type": self.TYPE_MAPPING[sns_type],
+                    "name": sensor_name,
+                    "unit": unit_str,
+                })
 
         return sensors
 
@@ -221,28 +213,33 @@ class TME(TMEBase):
         if self.ITEM_ID not in self.conf.sensors:
             self.conf.sensors[self.ITEM_ID] = {"name": "TME", "sub_sensors": {}}
 
-        status = element.attrib.get("status", "0")
-        unit_code = element.attrib.get("unit", "0")
+        status = require_attr(element, "status", "sensor", self.conf.context)
+        unit_code = require_attr(element, "unit", "sensor", self.conf.context)
+
+        sns_type = "1"  # typically temperature
+
+        # it always should be but it is done for symmetry
+        if sns_type not in self.TYPE_MAPPING:
+            _LOGGER.warning(
+                "Unknown sensor type '%s' ignored in %s.", sns_type, self.conf.context
+            )
+            return
 
         self.conf.sensors[self.ITEM_ID]["sub_sensors"][self.ITEM_ID] = {
-            "type": "1",
+            "type": sns_type,
             "unit": unit_code,
         }
 
-        semantic_key = self._generate_semantic_key(
-            self.TEMPERATURE_SNS_TYPE, self.ITEM_ID
-        )
+        semantic_key = self._generate_semantic_key(sns_type, self.ITEM_ID)
 
         if status in ("1", "4"):
             parsed_data["sensor"][semantic_key] = None
         else:
-            value = element.attrib.get("val", "0")
+            raw_val = require_attr(element, "val", "sensor", self.conf.context)
             try:
-                parsed_data["sensor"][semantic_key] = float(value) / 10.0
-            except ValueError as err:
-                raise DeviceParseError(
-                    f"{self.conf.context} returned an error while parsing value: '{value}' from sensor"
-                ) from err
+                parsed_data["sensor"][semantic_key] = float(raw_val) / 10.0
+            except ValueError:
+                parsed_data["sensor"][semantic_key] = None
 
     @override
     async def switch_to_web_mode(self) -> None:
@@ -264,10 +261,13 @@ class TMERadioMulti(TMEBase):
     ) -> None:
         """Parse Multi/Radio format."""
 
-        vc = int(element.attrib.get("vc", "0"))
+        try:
+            vc = int(element.attrib.get("vc", "0"))
+        except ValueError:
+            vc = 0
 
-        base_item_id = element.attrib.get("id", "1")
-        base_name = element.attrib.get("name", "Sensor")
+        base_item_id = require_attr(element, "id", "sensor", self.conf.context)
+        base_name = element.attrib.get("name", f"Sensor {base_item_id}")
 
         if base_item_id not in self.conf.sensors:
             self.conf.sensors[base_item_id] = {
@@ -287,8 +287,6 @@ class TMERadioMulti(TMEBase):
 
             item_id = base_item_id if idx == 1 else f"{base_item_id}_{idx}"
 
-            sns_type = str(idx)
-
             if vc == 1395 and idx == 3:
                 sns_type = self.CO2_SNS_TYPE
                 unit_code = "0"
@@ -298,6 +296,15 @@ class TMERadioMulti(TMEBase):
             else:
                 sns_type = str(idx)
                 unit_code = "0"
+
+            if sns_type not in self.TYPE_MAPPING:
+                _LOGGER.warning(
+                    "Unknown sensor type '%s' ignored in %s.",
+                    sns_type,
+                    self.conf.context,
+                )
+                idx += 1
+                continue
 
             semantic_key = self._generate_semantic_key(sns_type, item_id)
 
@@ -321,14 +328,17 @@ class TMERadioMulti(TMEBase):
 
         batt = element.attrib.get("batt")
         if batt is not None:
-            batt_value = round((int(batt) - 1) * (100 / 7), 1)
             batt_id = f"{base_item_id}_batt"
             self.conf.sensors[base_item_id]["sub_sensors"][batt_id] = {
                 "type": self.BATTERY,
                 "unit": "%",
             }
             semantic_key = self._generate_semantic_key(self.BATTERY, batt_id)
-            parsed_data["sensor"][semantic_key] = batt_value
+            try:
+                batt_value = round((int(batt) - 1) * (100 / 7), 1)
+                parsed_data["sensor"][semantic_key] = batt_value
+            except ValueError:
+                parsed_data["sensor"][semantic_key] = None
 
         rssi = element.attrib.get("rssi")
         if rssi is not None:
@@ -338,7 +348,10 @@ class TMERadioMulti(TMEBase):
                 "unit": "dBm",
             }
             semantic_key = self._generate_semantic_key(self.SIGNAL_STRENGTH, rssi_id)
-            parsed_data["sensor"][semantic_key] = int(rssi)
+            try:
+                parsed_data["sensor"][semantic_key] = int(rssi)
+            except ValueError:
+                parsed_data["sensor"][semantic_key] = None
 
     @override
     async def switch_to_web_mode(self) -> None:
@@ -352,22 +365,23 @@ class TMERadioMulti(TMEBase):
         def pad_ip(ip_str: str) -> str:
             return ".".join(part.zfill(3) for part in ip_str.split("."))
 
+        ctx = self.conf.context
         save_root = ET.Element("root")
         ET.SubElement(
             save_root,
             "set",
             box="1",
-            ip1=pad_ip(box.get("ip", "0.0.0.0")),
-            ip2=pad_ip(box.get("mask", "0.0.0.0")),
-            ip3=pad_ip(box.get("gate", "0.0.0.0")),
-            ip5=pad_ip(box.get("dip", "0.0.0.0")),
-            num2=box.get("wport", "80").zfill(5),
+            ip1=pad_ip(require_attr(box, "ip", "box 1", ctx)),
+            ip2=pad_ip(require_attr(box, "mask", "box 1", ctx)),
+            ip3=pad_ip(require_attr(box, "gate", "box 1", ctx)),
+            ip5=pad_ip(require_attr(box, "dip", "box 1", ctx)),
+            num2=require_attr(box, "wport", "box 1", ctx).zfill(5),
             num4="3",
-            num5=box.get("com", "0"),
-            num7=box.get("mport", "502").zfill(5),
-            num1=box.get("lport", "10001").zfill(5),
-            ip4=pad_ip(box.get("rip", "0.0.0.0")),
-            num3=box.get("rport", "0").zfill(5),
+            num5=require_attr(box, "com", "box 1", ctx),
+            num7=require_attr(box, "mport", "box 1", ctx).zfill(5),
+            num1=require_attr(box, "lport", "box 1", ctx).zfill(5),
+            ip4=pad_ip(require_attr(box, "rip", "box 1", ctx)),
+            num3=require_attr(box, "rport", "box 1", ctx).zfill(5),
         )
 
         xml_payload = ET.tostring(save_root, encoding="unicode")
@@ -381,46 +395,47 @@ class TMERadioMulti(TMEBase):
 
     def _check_sensor_response(
         self, response_text: str, expected_status: str, action_msg: str
-    ) -> int:
+    ) -> None:
         try:
             root = defused_ET.fromstring(response_text)
-            result_tag = find_tag(root, "result")
-
-            if result_tag is None:
-                raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
-                )
-
-            if result_tag.attrib.get("status") != expected_status:
-                raise DeviceResponseError(
-                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
-                )
-
-            return int(result_tag.attrib.get("typesens", "0"))
-
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
                 f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
             ) from exception
 
+        result_tag = find_tag(root, "result")
+
+        if result_tag is None:
+            raise DeviceParseError(
+                f"Response doesn't have result tag!, in the device: {self.conf.context}"
+            )
+
+        status_val = require_attr(result_tag, "status", "result tag", self.conf.context)
+
+        if status_val != expected_status:
+            raise DeviceResponseError(
+                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+            )
+
 
 async def async_setup_network_tme(client: PapouchHTTPClient) -> TMEBase | None:
     """Async factory for TME device."""
-    info = await client.fetch_info()
+
+    device_name, location = await client.get_device_info()
+
+    if device_name is None:
+        raise DeviceParseError("This TME doesn't have heartbeat tag or device name.")
+
+    device_name = device_name or UNKNOWN_NAME
+    location = location or UNKNOWN_LOCATION
+
+    mac_address = await client.get_device_mac()
     settings = await client.fetch_settings()
 
-    root_info = defused_ET.fromstring(info)
-    heartbeat_tag = find_tag(root_info, "heartbeat")
-
-    if heartbeat_tag is None:
-        raise DeviceParseError("This TME doesn't have heartbeat tag.")
-
-    device_name = heartbeat_tag.attrib.get("device")
-
     if device_name == "TME":
-        return TME(client, info, settings)
+        return TME(client, settings, device_name, location, mac_address)
     if device_name in {"TME radio", "TME MULTI"}:
-        return TMERadioMulti(client, info, settings)
+        return TMERadioMulti(client, settings, device_name, location, mac_address)
 
     _LOGGER.error("Unsupported TME: %s", device_name)
     return None

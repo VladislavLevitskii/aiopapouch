@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from abc import ABC
-from typing import Any, TypeVar, override
+from typing import Any, override
 
 import aiohttp
 
@@ -20,7 +20,7 @@ from .devices import (
 from .devices.base import PapouchDevice
 from .discovery import async_discover_papouch_devices
 from .exceptions import DeviceConnectionError, DeviceLogicError
-from .utils import _get_device_details, assign_next_available_address
+from .utils import assign_next_available_address, get_device_details
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -168,7 +168,7 @@ class SerialHub(Hub[PapouchSerialDevice]):
         """
 
         try:
-            _, serial_number, address = await _get_device_details(
+            _, serial_number, address = await get_device_details(
                 self.client, SERIAL_BROADCAST_ADDRESS
             )
         except DeviceConnectionError as err:

@@ -10,6 +10,7 @@ from aiopapouch.client import PapouchHTTPClient, PapouchSerialClient
 from aiopapouch.exceptions import (
     DeviceConnectionError,
     DeviceLogicError,
+    DeviceParseError,
     DeviceResponseError,
 )
 
@@ -122,8 +123,12 @@ class PapouchDevice[ClientT](ABC):
     def _generate_semantic_key(self, component_type: str, item_id: str) -> str:
         """Generate a readable semantic key based on the component type and item ID."""
 
-        # Use mapping from class constants, fallback to raw string if unknown
-        semantic_name = self.TYPE_MAPPING[component_type]
+        try:
+            semantic_name = self.TYPE_MAPPING[component_type]
+        except KeyError as err:
+            raise DeviceLogicError(
+                f"Unknown type of sensor: {component_type} in {self.conf.context}"
+            ) from err
         return f"{semantic_name}_{item_id}"
 
     @property
@@ -319,7 +324,13 @@ class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
     def _check_response(self, response_text: str, request_text: str) -> None:
         """Check the response of the requests."""
 
-        root = defused_ET.fromstring(response_text)
+        try:
+            root = defused_ET.fromstring(response_text)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Unable to parse response: '{response_text}' from {self.conf.context}"
+            ) from err
+
         result_tag = find_tag(root, "result")
 
         if result_tag is not None:

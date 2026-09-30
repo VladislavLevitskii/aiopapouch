@@ -23,10 +23,10 @@ from ..client import (
     PapouchHTTPClient,
 )
 from ..const import UNKNOWN_LOCATION
-from ..utils import find_tag, get_box_attribute
+from ..utils import find_tag, get_box_attribute, require_attr
 from .base import PapouchConfiguration
 
-_LOGGER = logging.getLogger()
+_LOGGER = logging.getLogger(__name__)
 
 EDGAR_BOX_1_MAP = {
     "ip": "ip01",
@@ -65,7 +65,7 @@ class PapouchHTTPConverter(ABC):
 
     @abstractmethod
     async def switch_to_tcp_server(self) -> None:
-        """Switch the converter to WEB mode"""
+        """Switch the converter to TCP server mode"""
 
 
 class Edgar(PapouchHTTPConverter):
@@ -81,7 +81,11 @@ class Edgar(PapouchHTTPConverter):
     ):
         _location = location or UNKNOWN_LOCATION
         self._conf = ConverterConfiguration(
-            identifier, name, _location, f"{name} - ({_location})", tcp_port=tcp_port
+            identifier,
+            name,
+            _location,
+            f"{name} ({_location}) - {client.ip_address}",
+            tcp_port=tcp_port,
         )
         self._client = client
 
@@ -93,7 +97,13 @@ class Edgar(PapouchHTTPConverter):
     @override
     async def get_mode(self) -> int:
         settings_xml = await self._client.fetch_settings()
-        root = defused_ET.fromstring(settings_xml)
+
+        try:
+            root = defused_ET.fromstring(settings_xml)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Invalid XML passed from {self.conf.context}"
+            ) from err
 
         value = get_box_attribute(root, "1", "comm", self.conf.context, "Device mode")
 
@@ -101,7 +111,7 @@ class Edgar(PapouchHTTPConverter):
             return int(value)
         except ValueError as err:
             raise DeviceParseError(
-                f"Mode is not represented in an integer in {self.conf.context}"
+                f"Mode is not represented as an integer in {self.conf.context}"
             ) from err
 
     def _check_response(
@@ -110,29 +120,38 @@ class Edgar(PapouchHTTPConverter):
         """Verify that the device responded correctly to a command."""
         try:
             root = defused_ET.fromstring(response_text)
-            result_tag = find_tag(root, "result")
-
-            if result_tag is None:
-                raise DeviceParseError(
-                    f"Response doesn't have result tag!, in the device: {self.conf.context}"
-                )
-
-            if result_tag.attrib.get("status") != expected_status:
-                raise DeviceResponseError(
-                    f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
-                )
-
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
+                f"Invalid XML response from device: {response_text}, in the device: {self.conf.context}"
             ) from exception
+
+        result_tag = find_tag(root, "result")
+
+        if result_tag is None:
+            raise DeviceParseError(
+                f"Response doesn't have result tag!, in the device: {self.conf.context}"
+            )
+
+        status_val = require_attr(result_tag, "status", "result tag", self.conf.context)
+
+        if status_val != expected_status:
+            raise DeviceResponseError(
+                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+            )
 
     @override
     async def switch_to_tcp_server(self) -> None:
         """Switch the converter to TCP server mode"""
 
         settings_xml = await self._client.fetch_settings()
-        root = defused_ET.fromstring(settings_xml)
+
+        try:
+            root = defused_ET.fromstring(settings_xml)
+        except defused_ET.ParseError as err:
+            raise DeviceParseError(
+                f"Invalid XML passed from {self.conf.context} during switch_to_tcp_server"
+            ) from err
+
         box1 = root.find(".//set[@box='1']")
 
         if box1 is None:
@@ -146,7 +165,7 @@ class Edgar(PapouchHTTPConverter):
             if get_key == "comm":
                 val = "0"
             else:
-                val = box1.attrib.get(get_key, "0")
+                val = require_attr(box1, get_key, "box 1", self.conf.context)
 
             payload_parts.append(f'{post_key}="{val}"')
 
@@ -208,7 +227,11 @@ class Gnome(PapouchHTTPConverter):
     ):
         _location = "Serial"
         self._conf = ConverterConfiguration(
-            identifier, name, _location, f"{name} ({_location})", tcp_port=tcp_port
+            identifier,
+            name,
+            _location,
+            f"{name} ({_location}) - {client.ip_address}",
+            tcp_port=tcp_port,
         )
         self._device_mode = device_mode
         self._client = client
