@@ -216,11 +216,18 @@ class TH2E(PapouchNetworkDevice):
             request, f"{self.conf.name} ({self.conf.location})"
         )
 
-        return self._check_sensor_response(
+        parsed_type = self._check_sensor_response(
             response,
             expected_status="4",
             action_msg="fetching the type of the sensor",
         )
+
+        if parsed_type is None:
+            raise DeviceParseError(
+                f"Missing required attribute 'typesens' in response in {self.conf.context}"
+            )
+
+        return parsed_type
 
     async def _set_sensor_type(self, type_idx: int) -> None:
         settings = await self.api_client.fetch_settings()
@@ -299,7 +306,7 @@ class TH2E(PapouchNetworkDevice):
 
     def _check_sensor_response(
         self, response_text: str, expected_status: str, action_msg: str
-    ) -> int:
+    ) -> int | None:
         try:
             root = defused_ET.fromstring(response_text)
         except defused_ET.ParseError as exception:
@@ -321,9 +328,10 @@ class TH2E(PapouchNetworkDevice):
                 f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
             )
 
-        typesens_str = require_attr(
-            result_tag, "typesens", "result tag", self.conf.context
-        )
+        typesens_str = result_tag.attrib.get("typesens")
+
+        if typesens_str is None:
+            return None
 
         try:
             return int(typesens_str)
@@ -355,21 +363,41 @@ class TH2E(PapouchNetworkDevice):
 
     @override
     def get_select_option(self, category: str, item_id: str) -> str | None:
-        if category == "sensor_type":
-            if 0 <= self.conf.sensor_type < len(self.SENSOR_TYPES):
-                return self.SENSOR_TYPES[self.conf.sensor_type]
-            return None
+        if category != "sensor_type":
+            raise DeviceLogicError(
+                f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            )
+
+        if item_id != "1":
+            raise DeviceLogicError(
+                f"Unknown item_id '{item_id}' requested for device: {self.conf.context}"
+            )
+
+        if 0 <= self.conf.sensor_type < len(self.SENSOR_TYPES):
+            return self.SENSOR_TYPES[self.conf.sensor_type]
 
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            f"Invalid sensor_type index '{self.conf.sensor_type}' in device: {self.conf.context}"
         )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
+        if category != "sensor_type":
+            raise DeviceLogicError(
+                f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            )
+
+        if item_id != "1":
+            raise DeviceLogicError(
+                f"Unknown item_id '{item_id}' requested for device: {self.conf.context}"
+            )
+
         try:
             type_idx = self.SENSOR_TYPES.index(option)
-        except ValueError:
-            return
+        except ValueError as err:
+            raise DeviceLogicError(
+                f"Unknown option '{option}' for category '{category}' in device: {self.conf.context}"
+            ) from err
 
         await self._set_sensor_type(type_idx)
         self.conf.sensor_type = type_idx
