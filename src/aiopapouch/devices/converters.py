@@ -475,6 +475,7 @@ def _parse_gnome_config(
 
 async def async_setup_converter_gnome(client: PapouchHTTPClient) -> Gnome | None:
     """Async factory for Gnome converter."""
+
     if not await _async_is_gnome_device(client):
         return None
 

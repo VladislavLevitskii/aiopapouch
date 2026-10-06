@@ -38,7 +38,7 @@ class THT2(PapouchSerialDevice):
         location: str,
         serial_number: str,
         address: int,
-        unit: str = "0",
+        unit: str | None,
     ) -> None:
         """Constructor for THT2 device. Default unit is C"""
 
@@ -50,7 +50,7 @@ class THT2(PapouchSerialDevice):
             identifier=serial_number,
             context=f"{device_name} - SN: {serial_number}",
             address=address,
-            unit=unit,
+            unit=unit if unit is not None else "0",
         )
 
     async def _update_data(self) -> bytes:
@@ -62,16 +62,18 @@ class THT2(PapouchSerialDevice):
 
     def _parse_raw_data(self, data: bytes) -> dict:
         """Parse raw bytes into dictionary )."""
+
+        if len(data) not in (0, 4, 8, 12):
+            raise DeviceLogicError(
+                f"Invalid payload length: {len(data)}, expected 4, 8, or 12 bytes, in {self.conf.context}"
+            )
+
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
         type_idx = 1
 
         for i in range(0, len(data), 4):
             chunk = data[i : i + 4]
-            if len(chunk) < 4:
-                raise DeviceParseError(
-                    f"Chunk doesn't have 4 bytes, in {self.conf.context}"
-                )
 
             item_id = str(type_idx)
             sns_type = str(type_idx)
@@ -125,12 +127,6 @@ class THT2(PapouchSerialDevice):
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         sensors = []
 
-        VALID_SENSORS = [
-            self.TEMPERATURE_SNS_TYPE,
-            self.HUMIDITY_SNS_TYPE,
-            self.DEW_POINT_SNS_TYPE,
-        ]
-
         for sns in self.conf.sensors.values():
             item_id = sns["id"]
             sns_type = sns["type"]
@@ -138,12 +134,8 @@ class THT2(PapouchSerialDevice):
 
             semantic_key = self._generate_semantic_key(sns_type, item_id)
 
-            if sns_type in VALID_SENSORS:
-                data_type = self.TYPE_MAPPING[sns_type]
-            else:
-                raise DeviceLogicError(
-                    f"Invalid type of the sensor: {sns_type} in the {self.conf.context}"
-                )
+            # sns_type is always valid (1 - 3)
+            data_type = self.TYPE_MAPPING[sns_type]
 
             sensors.append({
                 "item_id": item_id,
@@ -218,18 +210,21 @@ class THT2(PapouchSerialDevice):
 
 async def _get_unit(
     transport: PapouchSerialClient, address: int, serial_number: str
-) -> str:
+) -> str | None:
     pkt_unit = await transport.write_command(
         address, INST_GET_UNIT, f"THT2 on address {address} - SN: {serial_number}"
     )
 
     data = pkt_unit.data
 
-    if len(data) != 2:
+    if len(data) not in (0, 2, 4, 6):
         raise DeviceParseError(
             f"Invalid size of the payload for THT2 with {serial_number} on {address}. "
-            f"Expected 2 bytes, got {len(data)}."
+            f"Expected 0, 2, 4 or 6 bytes, got {len(data)}."
         )
+
+    if len(data) == 0:
+        return None
 
     # first channel value because setting can happen only on every channel
     chunk = data[1]

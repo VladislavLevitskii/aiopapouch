@@ -12,7 +12,7 @@ from pap_spinel import INST_INFO
 from .exceptions import DeviceConnectionError, DeviceLogicError, DeviceParseError
 
 if TYPE_CHECKING:
-    from .client import PapouchSerialClient
+    from .client import PapouchSerialClient  # pragma: no cover
 
 MAX_ATTEMPTS_ASSIGNING = 3
 

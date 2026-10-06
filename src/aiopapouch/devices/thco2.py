@@ -68,8 +68,10 @@ class THCO2(PapouchSerialDevice):
         """Parse raw bytes into dictionary )."""
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
 
-        if len(data) == 0:
-            raise DeviceParseError(f"Payload for {self.conf.context} is empty")
+        if len(data) != 11:
+            raise DeviceLogicError(
+                f"Invalid payload length: {len(data)} expected: 11, in {self.conf.context}"
+            )
 
         status = data[0]
         if status != 0:
@@ -77,20 +79,12 @@ class THCO2(PapouchSerialDevice):
 
         type_idx = 1
 
-        for i in range(1, len(data) - 2, 2):
+        for i in range(1, 9, 2):
             chunk = data[i : i + 2]
-            if len(chunk) < 2:
-                raise DeviceParseError(
-                    f"Chunk doesn't have 2 bytes, in {self.conf.context}"
-                )
-
-            if type_idx == 5:
-                raise DeviceParseError(
-                    f"Too much data received, in {self.conf.context}"
-                )
 
             item_id = str(type_idx)
 
+            # sns_type will be always valid no matter what
             sns_type = self.MAPPING_SENSORS[type_idx]
 
             self.conf.sensors[item_id] = {
@@ -136,13 +130,6 @@ class THCO2(PapouchSerialDevice):
     def get_supported_sensors(self) -> list[dict[str, Any]]:
         sensors = []
 
-        VALID_SENSORS = [
-            self.TEMPERATURE_SNS_TYPE,
-            self.HUMIDITY_SNS_TYPE,
-            self.DEW_POINT_SNS_TYPE,
-            self.CO2_SNS_TYPE,
-        ]
-
         for sns in self.conf.sensors.values():
             item_id = sns["id"]
             sns_type = sns["type"]
@@ -150,12 +137,7 @@ class THCO2(PapouchSerialDevice):
 
             semantic_key = self._generate_semantic_key(sns_type, item_id)
 
-            if sns_type in VALID_SENSORS:
-                data_type = self.TYPE_MAPPING[sns_type]
-            else:
-                raise DeviceLogicError(
-                    f"Invalid type of the sensor: {sns_type} in the {self.conf.context}"
-                )
+            data_type = self.TYPE_MAPPING[sns_type]
 
             sensors.append({
                 "item_id": item_id,
