@@ -6,7 +6,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 from aiopapouch.devices.base import ERROR_STATUS
-from aiopapouch.exceptions import DeviceParseError, DeviceResponseError
+from aiopapouch.exceptions import (
+    DeviceLogicError,
+    DeviceParseError,
+    DeviceResponseError,
+)
 
 from aiopapouch import PapouchNetworkDevice
 
@@ -138,3 +142,20 @@ def test_check_response_invalid_xml(dummy_device):
 
     with pytest.raises(DeviceParseError):
         dummy_device._check_response(response_xml, "Request")
+
+
+def test_base_get_unit_error(dummy_device):
+    """Test inherited _get_unit raises DeviceLogicError on missing dictionary keys."""
+
+    with pytest.raises(DeviceLogicError):
+        dummy_device._get_unit("nonexistent_sns_type", "0")
+
+    with pytest.raises(DeviceLogicError):
+        dummy_device._get_unit("1", "nonexistent_code")
+
+
+def test_base_generate_semantic_key_error(dummy_device):
+    """Test inherited _generate_semantic_key raises DeviceLogicError on missing type."""
+
+    with pytest.raises(DeviceLogicError):
+        dummy_device._generate_semantic_key("nonexistent_type", "1")

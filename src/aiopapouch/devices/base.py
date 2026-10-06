@@ -116,7 +116,7 @@ class PapouchDevice[ClientT](ABC):
             return self.UNIT_MAP[sns_type][unit_code]
         except KeyError as err:
             raise DeviceLogicError(
-                f"Unknown unit, device {self.conf.name} sent: '{sns_type}' "
+                f"Unknown unit, device {self.conf.context} sent: '{sns_type}' "
                 f"with code: '{unit_code}', that is missing in UNIT_MAP."
             ) from err
 
