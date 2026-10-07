@@ -114,18 +114,18 @@ async def test_static_setup_methods_invalid_payload(
 @pytest.mark.parametrize(
     "method_name, payload, expected, expected_exc",
     [
-        ("_get_state_coils", b"\x0a", {"1": 0, "2": 1, "3": 0, "4": 1}, None),
-        ("_get_state_coils", b"", None, DeviceParseError),
+        ("get_state_coils", b"\x0a", {"1": 0, "2": 1, "3": 0, "4": 1}, None),
+        ("get_state_coils", b"", None, DeviceParseError),
         ("_get_inputs", b"\x05", {"1": 1, "2": 0, "3": 1, "4": 0}, None),
         ("_get_inputs", b"", None, DeviceParseError),
         (
-            "_get_counters",
+            "get_counters",
             b"\x10\x00\x0a\x00\x14\x00\x1e\x00\x28",
             {"pulses_1": 10, "pulses_2": 20, "pulses_3": 30, "pulses_4": 40},
             None,
         ),
-        ("_get_counters", b"", None, DeviceParseError),
-        ("_get_counters", b"\x10\x00\x0a\x00\x14\x00\x1e", None, DeviceParseError),
+        ("get_counters", b"", None, DeviceParseError),
+        ("get_counters", b"\x10\x00\x0a\x00\x14\x00\x1e", None, DeviceParseError),
     ],
 )
 @pytest.mark.asyncio
@@ -169,9 +169,9 @@ async def test_get_temp(
 @pytest.mark.asyncio
 async def test_get_fresh_data_aggregation(mock_quido, serial_client):
     """Test get_fresh_data aggregates coils, inputs, counters, and temp."""
-    mock_quido._get_state_coils = AsyncMock(return_value={"1": 1})
+    mock_quido.get_state_coils = AsyncMock(return_value={"1": 1})
     mock_quido._get_inputs = AsyncMock(return_value={"1": 0})
-    mock_quido._get_counters = AsyncMock(return_value={"pulses_1": 10})
+    mock_quido.get_counters = AsyncMock(return_value={"pulses_1": 10})
     mock_quido._get_temp = AsyncMock(return_value=22.5)
 
     serial_client.write_command.return_value = MockPacket(b"\x00\x01")
@@ -230,14 +230,14 @@ async def test_turn_on_off_commands(
 @pytest.mark.asyncio
 async def test_connect_disconnect_all_coils(mock_quido):
     """Test logic evaluating current states to turn on/off all coils."""
-    mock_quido._get_state_coils = AsyncMock(return_value={"1": 0, "2": 1})
+    mock_quido.get_state_coils = AsyncMock(return_value={"1": 0, "2": 1})
 
     mock_quido.turn_on_switch = AsyncMock()
-    await mock_quido._connect_all_coils()
+    await mock_quido.connect_all_coils()
     mock_quido.turn_on_switch.assert_called_once_with("1")
 
     mock_quido.turn_off_switch = AsyncMock()
-    await mock_quido._disconnect_all_coils()
+    await mock_quido.disconnect_all_coils()
     mock_quido.turn_off_switch.assert_called_once_with("2")
 
 
@@ -358,9 +358,9 @@ async def test_reset_all_counters_chunking(mock_quido, serial_client):
     serial_client.write_command.return_value = MockPacket(ack=0)
     mock_quido.conf.number_inputs = 14
     counters = {f"pulses_{i}": 10 for i in range(1, 15)}
-    mock_quido._get_counters = AsyncMock(return_value=counters)
+    mock_quido.get_counters = AsyncMock(return_value=counters)
 
-    await mock_quido._reset_all_counters()
+    await mock_quido.reset_all_counters()
 
     assert serial_client.write_command.call_count == 2
 
@@ -379,7 +379,7 @@ async def test_reset_all_counters_missing_key(mock_quido):
     """Test defensive check when a counter is inexplicably missing from the dictionary."""
 
     incomplete_counters = {"pulses_1": 10}
-    mock_quido._get_counters = AsyncMock(return_value=incomplete_counters)
+    mock_quido.get_counters = AsyncMock(return_value=incomplete_counters)
 
     with pytest.raises(DeviceLogicError):
-        await mock_quido._reset_all_counters()
+        await mock_quido.reset_all_counters()

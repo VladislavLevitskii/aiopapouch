@@ -740,13 +740,13 @@ async def test_auto_detect_edge_cases(http_client):
     device = await async_setup_network_papago(http_client)
 
     http_client.write_command = AsyncMock(return_value="")
-    await device._auto_detect_sensor("1")
+    await device.auto_detect_sensor("1")
 
     http_client.write_command = AsyncMock(
         return_value='<root><result status="2" /></root>'
     )
     with pytest.raises(DeviceResponseError):
-        await device._auto_detect_sensor("1")
+        await device.auto_detect_sensor("1")
 
 
 @pytest.mark.asyncio
@@ -758,7 +758,7 @@ async def test_set_sensor_type_edge_cases(http_client):
     )
     http_client.fetch_settings.return_value = SETTINGS_5HDI_1DO_XML
     device_5hdi = await async_setup_network_papago(http_client)
-    await device_5hdi._set_sensor_type("1", "1")
+    await device_5hdi.set_sensor_type("1", "1")
 
     http_client.get_device_info = AsyncMock(return_value=("Papago 2TH ETH", "NONAME"))
     http_client.fetch_settings.return_value = (
@@ -768,7 +768,7 @@ async def test_set_sensor_type_edge_cases(http_client):
     device_2th._update_settings = AsyncMock()
 
     with pytest.raises(DeviceParseError):
-        await device_2th._set_sensor_type("1", "1")
+        await device_2th.set_sensor_type("1", "1")
 
 
 @pytest.mark.asyncio
@@ -797,9 +797,9 @@ async def test_input_counter_mode_logic(http_client):
     assert "num02=" in payload2
 
     with pytest.raises(DeviceLogicError):
-        await device._set_input_type("invalid_id", "1")
+        await device.set_input_type("invalid_id", "1")
     with pytest.raises(DeviceLogicError):
-        await device._set_input_type("9999", "1")
+        await device.set_input_type("9999", "1")
 
 
 @pytest.mark.asyncio
@@ -896,14 +896,14 @@ async def test_meteo_select_options_coverage(http_client):
     assert device.get_select_option("sensor_type_meteo_ab", "999") is None
     assert device.get_select_option("invalid_cat", "1") is None
 
-    device._set_sensor_type = AsyncMock()
+    device.set_sensor_type = AsyncMock()
 
     await device.set_select_option("sensor_type_meteo_ab", "1", "atmospheric_pressure")
-    device._set_sensor_type.assert_called_with("1", "7")
+    device.set_sensor_type.assert_called_with("1", "7")
 
     await device.set_select_option("sensor_type_meteo_c", "3", "davis")
-    device._set_sensor_type.assert_called_with("3", "6")
+    device.set_sensor_type.assert_called_with("3", "6")
 
-    device._set_sensor_type.reset_mock()
+    device.set_sensor_type.reset_mock()
     await device.set_select_option("sensor_type_meteo_ab", "1", "nesmysl_option")
-    device._set_sensor_type.assert_not_called()
+    device.set_sensor_type.assert_not_called()

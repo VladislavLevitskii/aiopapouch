@@ -221,13 +221,13 @@ async def test_th2e_set_sensor_type_edge_cases(http_client):
 
     http_client.fetch_settings.return_value = "NOT_XML"
     with pytest.raises(DeviceParseError):
-        await device._set_sensor_type(1)
+        await device.set_sensor_type(1)
 
     http_client.fetch_settings.return_value = '<root><set box="1"/></root>'
     http_client.write_command.return_value = (
         '<root><result status="2" typesens="1"/></root>'
     )
-    await device._set_sensor_type(1)
+    await device.set_sensor_type(1)
 
     assert http_client.write_command.called
 
@@ -298,11 +298,11 @@ def test_th2e_check_sensor_response_success_no_typesens(http_client):
 
 @pytest.mark.asyncio
 async def test_th2e_get_sensor_type_missing_attr(http_client):
-    """Test that _get_sensor_type explicitly raises error if typesens is missing."""
+    """Test that get_sensor_typeexplicitly raises error if typesens is missing."""
 
     device = TH2E(http_client, "<root></root>", "N", "L", "MAC")
 
     http_client.write_command.return_value = '<root><result status="4" /></root>'
 
     with pytest.raises(DeviceParseError):
-        await device._get_sensor_type()
+        await device.get_sensor_type()

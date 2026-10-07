@@ -159,11 +159,11 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
         """Route the button press to the correct method."""
         match cmd_type:
             case "connect_all_coils":
-                await self._connect_all_coils()
+                await self.connect_all_coils()
             case "disconnect_all_coils":
-                await self._disconnect_all_coils()
+                await self.disconnect_all_coils()
             case "reset_all_counters":
-                await self._reset_all_counters()
+                await self.reset_all_counters()
             case _:
                 raise DeviceLogicError(
                     f"Unsupported command: {cmd_type}, in the device: {self.conf.name} ({self.conf.location})"
@@ -172,12 +172,12 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
     @override
     async def turn_on_switch(self, item_id: str) -> None:
         """Turn on the switch by its id."""
-        await self._turn_on_coil(item_id)
+        await self.turn_on_coil(item_id)
 
     @override
     async def turn_off_switch(self, item_id: str) -> None:
         """Turn off the switch by its id."""
-        await self._turn_off_coil(item_id)
+        await self.turn_off_coil(item_id)
 
     # These are the methods all of the children should implement
 
@@ -187,28 +187,28 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
         pass
 
     @abstractmethod
-    async def _connect_all_coils(self) -> None:
-        pass
+    async def connect_all_coils(self) -> None:
+        """Connect all the coils."""
 
     @abstractmethod
-    async def _disconnect_all_coils(self) -> None:
-        pass
+    async def disconnect_all_coils(self) -> None:
+        """Disconnect all the coils."""
 
     @abstractmethod
-    async def _reset_all_counters(self) -> None:
-        pass
+    async def reset_all_counters(self) -> None:
+        """Reset all the counters."""
 
     @abstractmethod
-    async def _turn_on_coil(self, item_id: str) -> None:
-        pass
+    async def turn_on_coil(self, item_id: str) -> None:
+        """Turn the specifil coil on"""
 
     @abstractmethod
-    async def _turn_off_coil(self, item_id: str) -> None:
-        pass
+    async def turn_off_coil(self, item_id: str) -> None:
+        """Turn the specifil coil off"""
 
     @abstractmethod
-    async def _decrease_value_counter(self, item_id: str, value: int) -> None:
-        pass
+    async def decrease_value_counter(self, item_id: str, value: int) -> None:
+        """Decrease specific value by value."""
 
 
 @dataclass
@@ -320,7 +320,7 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         match category:
             case "decrease_counter":
-                await self._decrease_value_counter(item_id, int(value))
+                await self.decrease_value_counter(item_id, int(value))
             case "output_on_duration" | "output_off_duration":
                 time_units = max(1, min(255, int(value * 2)))
                 await self._send_command(
@@ -337,7 +337,7 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Return selected option by its id."""
         if category == "counter_mode":
-            return self._get_counter_mode(item_id)
+            return self.get_counter_mode(item_id)
 
         raise DeviceLogicError(
             f"Unknown select category '{category}' requested for device: {self.conf.context}"
@@ -347,7 +347,7 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         """Set selected option by its id."""
         if category == "counter_mode":
-            await self._set_counter_mode(item_id, option)
+            await self.set_counter_mode(item_id, option)
         else:
             raise DeviceLogicError(
                 f"Unknown select category '{category}' requested for device: {self.conf.context}"
@@ -395,31 +395,31 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         await asyncio.sleep(15)
 
     @override
-    async def _connect_all_coils(self) -> None:
+    async def connect_all_coils(self) -> None:
         """Command for connecting all the coils."""
         await self._send_command("S")
 
     @override
-    async def _disconnect_all_coils(self) -> None:
+    async def disconnect_all_coils(self) -> None:
         """Command for disconnecting all the coils."""
         await self._send_command("R")
 
     @override
-    async def _reset_all_counters(self) -> None:
+    async def reset_all_counters(self) -> None:
         """Command for resetting all the counters."""
         await self._send_command("C")
 
     @override
-    async def _decrease_value_counter(self, item_id: str, value: int) -> None:
+    async def decrease_value_counter(self, item_id: str, value: int) -> None:
         """Command for decreasing specific counter."""
         await self._send_command("c", item_id, str(value))
 
-    def _get_counter_mode(self, item_id: str) -> str:
+    def get_counter_mode(self, item_id: str) -> str:
         """Get the current mode of the counter."""
         result = self.conf.counter_states.get(item_id, self.COUNTER_MODES[0])
         return str(result)
 
-    async def _set_counter_mode(self, item_id: str, mode: str) -> None:
+    async def set_counter_mode(self, item_id: str, mode: str) -> None:
         """Set the new mode of the counter."""
         current_settings = await self.api_client.fetch_settings()
 
@@ -520,12 +520,12 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                     )
 
     @override
-    async def _turn_on_coil(self, item_id: str) -> None:
+    async def turn_on_coil(self, item_id: str) -> None:
         """Command for turning on the coil by its id."""
         await self._send_command("s", item_id)
 
     @override
-    async def _turn_off_coil(self, item_id: str) -> None:
+    async def turn_off_coil(self, item_id: str) -> None:
         """Command for turning off the coil by its id."""
         await self._send_command("r", item_id)
 
@@ -549,7 +549,9 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         self.api_client = api_client
         self._conf = configuration
 
-    async def _get_state_coils(self) -> dict:
+    async def get_state_coils(self) -> dict:
+        """Get dictionary of the state of all the coils"""
+
         result_pkt = await self.api_client.write_command(
             self.conf.address, INST_READ_OUTPUT, self.conf.context
         )
@@ -613,7 +615,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         result = int.from_bytes(data_part, signed=True)
         return result / 10
 
-    async def _get_counters(self) -> dict:
+    async def get_counters(self) -> dict:
         result: dict = {}
 
         result_pkt = await self.api_client.write_command(
@@ -682,9 +684,9 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             "counter": {},
         }
 
-        parsed_data["switch"] = await self._get_state_coils()
+        parsed_data["switch"] = await self.get_state_coils()
         parsed_data["input"] = await self._get_inputs()
-        parsed_data["counter"] = await self._get_counters()
+        parsed_data["counter"] = await self.get_counters()
 
         semantic_key = self._generate_semantic_key(self.TEMPERATURE_SNS_TYPE, "1")
         parsed_data["temperature"][semantic_key] = await self._get_temp()
@@ -693,14 +695,18 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         return parsed_data
 
-    def _get_counter_mode(self, item_id: str) -> str:
+    def get_counter_mode(self, item_id: str) -> str:
+        """Get the mode of the counter."""
+
         result = self.conf.counter_states.get(item_id)
         if result is None:
             raise DeviceLogicError(f"Unknown item_id: {item_id} in {self.conf.context}")
 
         return str(result)
 
-    async def _set_counter_mode(self, item_id: str, mode: str) -> None:
+    async def set_counter_mode(self, item_id: str, mode: str) -> None:
+        """Set the mode of the counter."""
+
         try:
             mode_index = self.COUNTER_MODES.index(mode)
         except ValueError as err:
@@ -728,7 +734,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
     def get_select_option(self, category: str, item_id: str) -> str | None:
         """Return selected option by its id."""
         if category == "counter_mode":
-            return self._get_counter_mode(item_id)
+            return self.get_counter_mode(item_id)
         raise DeviceLogicError(
             f"Unknown select category '{category}' requested for device: {self.conf.context}"
         )
@@ -736,14 +742,14 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         if category == "counter_mode":
-            await self._set_counter_mode(item_id, option)
+            await self.set_counter_mode(item_id, option)
         else:
             raise DeviceLogicError(
                 f"Unknown select category '{category}' requested for device: {self.conf.context}"
             )
 
     @override
-    async def _decrease_value_counter(self, item_id: str, value: int) -> None:
+    async def decrease_value_counter(self, item_id: str, value: int) -> None:
         payload = int(item_id).to_bytes(1) + value.to_bytes(2)
         response = await self.api_client.write_command(
             self.conf.address, INST_SUBTRACT_COUNTER, self.conf.context, payload
@@ -764,7 +770,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
     async def set_number_value(self, category: str, item_id: str, value: float) -> None:
         match category:
             case "decrease_counter":
-                await self._decrease_value_counter(item_id, int(value))
+                await self.decrease_value_counter(item_id, int(value))
             case "output_on_duration" | "output_off_duration":
                 time_units = max(1, min(255, int(value * 2)))
                 output_num = int(item_id)
@@ -796,22 +802,22 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         )
 
     @override
-    async def _connect_all_coils(self) -> None:
-        state_coils = await self._get_state_coils()
+    async def connect_all_coils(self) -> None:
+        state_coils = await self.get_state_coils()
         for coil_id, coil_value in state_coils.items():
             if coil_value == 0:
                 await self.turn_on_switch(coil_id)
 
     @override
-    async def _disconnect_all_coils(self) -> None:
-        state_coils = await self._get_state_coils()
+    async def disconnect_all_coils(self) -> None:
+        state_coils = await self.get_state_coils()
         for coil_id, coil_value in state_coils.items():
             if coil_value == 1:
                 await self.turn_off_switch(coil_id)
 
     @override
-    async def _reset_all_counters(self) -> None:
-        counters: dict[str, int] = await self._get_counters()
+    async def reset_all_counters(self) -> None:
+        counters: dict[str, int] = await self.get_counters()
 
         pairs: list[tuple[int, int]] = []
         for i in range(1, self.conf.number_inputs + 1):
@@ -846,7 +852,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
                 )
 
     @override
-    async def _turn_on_coil(self, item_id: str) -> None:
+    async def turn_on_coil(self, item_id: str) -> None:
         output_num = int(item_id)
         payload = (0x80 | output_num).to_bytes(1)
         await self.api_client.write_command(
@@ -854,7 +860,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         )
 
     @override
-    async def _turn_off_coil(self, item_id: str) -> None:
+    async def turn_off_coil(self, item_id: str) -> None:
         output_num = int(item_id)
         payload = output_num.to_bytes(1)
         await self.api_client.write_command(

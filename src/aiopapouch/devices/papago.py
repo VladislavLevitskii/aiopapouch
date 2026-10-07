@@ -413,9 +413,9 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             )
 
         sensor_id = cmd_type.split("_")[2]
-        await self._auto_detect_sensor(sensor_id)
+        await self.auto_detect_sensor(sensor_id)
 
-    async def _auto_detect_sensor(self, sensor_id: str) -> None:
+    async def auto_detect_sensor(self, sensor_id: str) -> None:
         """Send command to automatically detect the connected sensor."""
         result_id = str(int(sensor_id) + 3)
         payload = f'<root><set box="98" num01="{result_id}" /></root>'
@@ -457,7 +457,7 @@ class PapagoETH(PapouchNetworkDevice, ABC):
                     s_id = str(box_num - base + 1)
                     self.conf.sensors_types[s_id] = sns_type
 
-    async def _set_sensor_type(self, item_id: str, type_idx: str) -> None:
+    async def set_sensor_type(self, item_id: str, type_idx: str) -> None:
         """Set sensor type by sensor id and type index (exact number that will be send to Meteo)."""
 
         await self._update_settings()
@@ -577,7 +577,7 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             action_msg="saving and restarting the device",
         )
 
-    async def _set_input_type(self, item_id: str, type_idx: str) -> None:
+    async def set_input_type(self, item_id: str, type_idx: str) -> None:
         """Set the counter mode for a specific input."""
 
         await self._update_settings()
@@ -619,22 +619,28 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         input_item.type_cnt = type_idx
 
+    async def decrease_counter(self, item_id: str, value: float):
+        """Decrease counter by the value."""
+
+        formatted_value = str(value).removesuffix(".0")
+        await self._send_command("m", item_id=item_id, value=str(formatted_value))
+
+    async def set_counter(self, item_id: str, value: float):
+        """Decrease counter by the value."""
+
+        formatted_value = str(value).removesuffix(".0")
+        await self._send_command("n", item_id=item_id, value=str(formatted_value))
+
     @override
     async def set_number_value(
         self, category: str, _item_id: str, _value: float
     ) -> None:
 
-        formatted_value = str(_value).removesuffix(".0")
-
         match category:
             case "decrease_counter":
-                await self._send_command(
-                    "m", item_id=_item_id, value=str(formatted_value)
-                )
+                await self.decrease_counter(_item_id, _value)
             case "set_counter":
-                await self._send_command(
-                    "n", item_id=_item_id, value=str(formatted_value)
-                )
+                await self.set_counter(_item_id, _value)
             case _:
                 raise DeviceLogicError(
                     f"Unknown number category '{category}' requested for device: {self.conf.context}"
@@ -671,7 +677,7 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             except ValueError:
                 return
 
-            await self._set_sensor_type(item_id, type_idx)
+            await self.set_sensor_type(item_id, type_idx)
             return
 
         if category == "counter_mode":
@@ -680,7 +686,7 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             except ValueError:
                 return
 
-            await self._set_input_type(item_id, type_idx)
+            await self.set_input_type(item_id, type_idx)
             return
 
         raise DeviceLogicError(
@@ -942,7 +948,7 @@ class PapagoETH_METEO(PapagoETH):
                     break
 
             if type_idx is not None:
-                await self._set_sensor_type(item_id, type_idx)
+                await self.set_sensor_type(item_id, type_idx)
 
 
 async def async_setup_network_papago(client: PapouchHTTPClient) -> PapagoETH | None:

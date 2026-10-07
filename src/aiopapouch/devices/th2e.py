@@ -207,10 +207,12 @@ class TH2E(PapouchNetworkDevice):
                 f"Unsupported command: {cmd_type}, in the device: {self.conf.context}"
             )
 
-        self.conf.sensor_type = await self._get_sensor_type()
-        await self._set_sensor_type(self.conf.sensor_type)
+        self.conf.sensor_type = await self.get_sensor_type()
+        await self.set_sensor_type(self.conf.sensor_type)
 
-    async def _get_sensor_type(self) -> int:
+    async def get_sensor_type(self) -> int:
+        """Get the type of the sensor."""
+
         request = '<root><set box="19" num1="00001" /></root>'
         response = await self.api_client.write_command(
             request, f"{self.conf.name} ({self.conf.location})"
@@ -229,7 +231,9 @@ class TH2E(PapouchNetworkDevice):
 
         return parsed_type
 
-    async def _set_sensor_type(self, type_idx: int) -> None:
+    async def set_sensor_type(self, type_idx: int) -> None:
+        """Set the type of the sensor."""
+
         settings = await self.api_client.fetch_settings()
 
         try:
@@ -399,7 +403,7 @@ class TH2E(PapouchNetworkDevice):
                 f"Unknown option '{option}' for category '{category}' in device: {self.conf.context}"
             ) from err
 
-        await self._set_sensor_type(type_idx)
+        await self.set_sensor_type(type_idx)
         self.conf.sensor_type = type_idx
 
     @override
