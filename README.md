@@ -56,6 +56,12 @@ Due to polymorphism, the factory functions `create_network_device` and `create_s
 
 > **Note:** Initial fresh fetch of data happens before the creation of the entities, making it a valid approach to generate configurations during/after the parsing of fresh data.
 
+Here is a simplified class diagram of `aiopapouch`, useful for checking what each device provides:
+
+![Simplified class diagram](./class_diagram_mini.png)
+
+You can also view the complete [full class diagram](./class_diagram.png).
+
 ## Hubs (Recommended)
 
 When dealing with multiple devices, it is highly recommended to use **Hubs**. Hubs act as managers that group devices together, providing unified methods to concurrently fetch data (`get_fresh_data`) or verify device states (`check_health`). There is also a possibility to `add`/`remove/get`/`create` devices, but due to the nature of these hubs the implementations of these methods are quite different from each other. And there are more ways to execute these operations, using IP address, bus address, via broadcast and so on.
