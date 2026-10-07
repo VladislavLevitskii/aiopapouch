@@ -39,19 +39,26 @@ and these are devices that use serial communiction (RS485):
 
 ## Devices
 
-The library is designed using an object-oriented approach. Every device (or device family) is a subclass of either `PapouchNetworkDevice` or `PapouchSerialDevice` (which both inherit from the abstract `PapouchDevice` core). This clear separation of the transport layer provides shared contract methods such as `get_fresh_data`, `get_supported_sensors`, and properties like `name` and `identifier`.
+The library is designed using an object-oriented approach. Every device (or device family) is a subclass of either `PapouchNetworkDevice` or `PapouchSerialDevice` (which both inherit from the abstract `PapouchDevice` core). This clear separation of the transport layer provides shared contract methods such as:
+- `get_fresh_data`
+- `get_supported_sensors/buttons/...`
+- `ping`, `restart`
+- property `conf` that contains the configuration of the device
+    - name, location, identifier, ip_address/address (depends on the type of the communication), ...
 
 Due to polymorphism, the factory functions `create_network_device` and `create_serial_device` return a generic `PapouchNetworkDevice` and `PapouchSerialDevice` respectively. This works in tandem with the `is_device_supported` function, which validates whether the hardware is supported by this library.
 
-> ***Note:*** The constructors are asynchronous (implementing the factory pattern). Creating any device instance utilizes the network/serial communication to download the initial configuration.
+> **Note:** Devices after executing `restart` have undefined behavior, we suggest you to manually wait about 5 seconds using `await asyncio.sleep()`
 
-> ***Note:*** The library was designed specifically for Home Assistant. Methods like `get_supported_sensors` return configurations required for entity creation. This remains the primary purpose of the library.
+> **Note:** The constructors are asynchronous (implementing the factory pattern). Creating any device instance utilizes the network/serial communication to download the initial configuration.
 
-> ***Note:*** Initial fresh fetch of data happens before the creation of the entities, making it a valid approach to generate configurations during/after the parsing of fresh data.
+> **Note:** The library was designed specifically for Home Assistant. Methods like `get_supported_sensors` return configurations required for entity creation. This remains the primary purpose of the library.
+
+> **Note:** Initial fresh fetch of data happens before the creation of the entities, making it a valid approach to generate configurations during/after the parsing of fresh data.
 
 ## Hubs (Recommended)
 
-When dealing with multiple devices, it is highly recommended to use **Hubs**. Hubs act as managers that group devices together, providing unified methods to concurrently fetch data (`get_fresh_data`) or verify device states (`check_health`).
+When dealing with multiple devices, it is highly recommended to use **Hubs**. Hubs act as managers that group devices together, providing unified methods to concurrently fetch data (`get_fresh_data`) or verify device states (`check_health`). There is also a possibility to `add`/`remove/get`/`create` devices, but due to the nature of these hubs the implementations of these methods are quite different from each other. And there are more ways to execute these operations, using IP address, bus address, via broadcast and so on.
 
 The library provides **3 types of Hubs** based on the transport layer:
 

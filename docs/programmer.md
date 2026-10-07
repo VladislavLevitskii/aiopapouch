@@ -81,7 +81,7 @@ Every device configuration holds a `context` property heavily utilized in the co
 
 To manage multiple devices efficiently and safely, the library provides a Hub architecture. The core `Hub` is implemented as an abstract base class (`ABC`) using generic typing (`Hub[DeviceT]`), bounded by `PapouchDevice`. This ensures strict type safety across different transport layers.
 
-Hubs centralize collective operations, such as concurrent data fetching (`get_fresh_data`) and status polling (`check_health`), leveraging `asyncio.gather` for performance.
+Hubs centralize collective operations, such as concurrent data fetching (`get_fresh_data`) and status polling (`check_health`), leveraging `asyncio.gather` for performance. With the small exception with serial hub since serial client has the lock on write command, the implementation of the methods above is straight-forward using for loop.
 
 ### Architectural Differences in Hubs
 
