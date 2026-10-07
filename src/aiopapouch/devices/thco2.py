@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, override
 
-from aiopapouch.exceptions import DeviceLogicError, DeviceParseError
+from aiopapouch.exceptions import DeviceLogicError
 
 from ..client import PapouchSerialClient
 from ..const import INST_READ_TEMPERATURE

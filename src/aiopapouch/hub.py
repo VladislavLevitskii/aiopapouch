@@ -69,6 +69,11 @@ class Hub[DeviceT: PapouchDevice[Any]](ABC):
                 f"{device.conf.identifier} is not in the hub."
             ) from err
 
+    async def remove_all_devices(self) -> None:
+        """Remove all the devices in the hub."""
+
+        self.devices.clear()
+
     async def get_fresh_data(self) -> dict:
         """
         Get fresh data from all registered devices, where keys are their names.
@@ -128,6 +133,35 @@ class Hub[DeviceT: PapouchDevice[Any]](ABC):
             device.conf.context: result for device, result in zip(self.devices, results)
         }
 
+    async def restart_all_devices(self) -> None:
+        """
+        Restart every device that is registered on the bus.
+
+        In case there is device that doesn't provide that functionality
+        or the operation itself raises some exception,
+        the method will log it and continue.
+
+        Doesn't raise.
+
+        Be careful that every operation after the reset is UB.
+        Please wait 4-5 seconds.
+        """
+
+        if not self.devices:
+            return
+
+        tasks = [device.restart() for device in self.devices]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for device, data in zip(self.devices, results):
+            if isinstance(data, Exception):
+                _LOGGER.warning(
+                    "Failed to restart device %s: %s",
+                    device.conf.context,
+                    data,
+                )
+                continue
+
 
 class SerialHub(Hub[PapouchSerialDevice]):
     """Hub for serial devices."""
@@ -150,6 +184,21 @@ class SerialHub(Hub[PapouchSerialDevice]):
 
         return [device.conf.address for device in self.devices]
 
+    @override
+    async def get_fresh_data(self) -> dict:
+        """
+        Note that this method doesn't use coroutines since the client has the lock.
+        """
+
+        fresh_data = {}
+        for device in self.devices:
+            try:
+                fresh_data[device.conf.context] = await device.get_fresh_data()
+            except DeviceConnectionError:
+                _LOGGER.warning("Unable to fetch from '%s'", device.conf.context)
+
+        return fresh_data
+
     async def create_and_add_device(self, address: int) -> None:
         """Create a new device over serial and add it to the hub.
 
@@ -165,6 +214,9 @@ class SerialHub(Hub[PapouchSerialDevice]):
         """Create a new device over serial and add it to the hub.
 
         Raise DeviceLogicError if the device couldn't be created.
+
+        Raise DeviceConnectionError if there are more devices on the bus (or None).
+            - note that it is UB and sometimes it will work sometimes it won't.
         """
 
         try:
@@ -218,6 +270,7 @@ class SerialHub(Hub[PapouchSerialDevice]):
 
     def get_device_by_address(self, address: int) -> PapouchSerialDevice:
         """Find and return a device by its bus address, raise DeviceLogicError if not found."""
+
         for device in self.devices:
             if device.conf.address == address:
                 return device
@@ -394,6 +447,7 @@ class NetworkSpinelHub(Hub[PapouchSerialDevice]):
                 f"Unable to close port for {device.conf.context}"
             ) from err
 
+    @override
     async def remove_all_devices(self) -> None:
         """Remove all devices and close their ports."""
 

@@ -7,6 +7,7 @@ from typing import Any, ClassVar, TypeVar, override
 import defusedxml.ElementTree as defused_ET
 
 from aiopapouch.client import PapouchHTTPClient, PapouchSerialClient
+from aiopapouch.const import INST_RESET
 from aiopapouch.exceptions import (
     DeviceConnectionError,
     DeviceLogicError,
@@ -141,6 +142,10 @@ class PapouchDevice[ClientT](ABC):
         """Ping the device. Return false if device doesn't respond otherwise True. Doesn't raise."""
 
     @abstractmethod
+    async def restart(self) -> None:
+        """Restarts the device."""
+
+    @abstractmethod
     async def get_fresh_data(self) -> dict:
         """Fetch and parse fresh data and return normalized data.
 
@@ -272,6 +277,15 @@ class PapouchSerialDevice(PapouchDevice[PapouchSerialClient], ABC):
         """Configuration for serial devices"""
 
     @override
+    async def restart(self) -> None:
+        response = await self.api_client.write_command(
+            self.conf.address, INST_RESET, self.conf.context
+        )
+
+        if response.ack_code() != 0:
+            raise DeviceLogicError(f"Unable to restart the device: {self.conf.context}")
+
+    @override
     async def ping(self) -> bool:
         try:
             await self.api_client.get_info(self.conf.address, context="")
@@ -297,6 +311,13 @@ class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
             return False
 
         return True
+
+    @override
+    async def restart(self) -> None:
+        payload = """<root><set box="14" num1="00001" /></root>"""
+
+        response = await self.api_client.write_command(payload, self.conf.context)
+        self._check_response(response, payload)
 
     async def _send_command(
         self,
