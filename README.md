@@ -58,9 +58,9 @@ Due to polymorphism, the factory functions `create_network_device` and `create_s
 
 Here is a simplified class diagram of `aiopapouch`, useful for checking what each device provides:
 
-![Simplified class diagram](./class_diagram_mini.png)
+![Simplified class diagram](./docs/class_diagram_mini.png)
 
-You can also view the complete [full class diagram](./class_diagram.png).
+You can also view the complete [full class diagram](./docs/class_diagram.png).
 
 ## Hubs (Recommended)
 

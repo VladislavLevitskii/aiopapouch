@@ -38,6 +38,8 @@ INST_COUNTER_MODE_WRITE = 0x6A
 INST_COUNTER_MODE_READ = 0x6B
 INST_INFO_DATA_QUIDO = 0xF3
 
+MAX_NUMBER_COUNTERS = 60
+
 
 @dataclass
 class QuidoConfiguration(PapouchConfiguration):
@@ -84,7 +86,7 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
                 "max_value": (2**self.conf.size_counter_bits) - 1,
                 "step": 1,
             }
-            for i in range(1, self.conf.number_inputs + 1)
+            for i in range(1, min(self.conf.number_inputs, MAX_NUMBER_COUNTERS) + 1)
         ]
         result.extend(
             {
@@ -127,7 +129,7 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
                 "name": str(i),
                 "unit": "pulses",
             }
-            for i in range(1, self.conf.number_inputs + 1)
+            for i in range(1, min(self.conf.number_inputs, MAX_NUMBER_COUNTERS) + 1)
         ])
 
         return sensors
@@ -151,7 +153,7 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
                 "name": str(i),
                 "options": self.COUNTER_MODES,
             }
-            for i in range(1, self.conf.number_inputs + 1)
+            for i in range(1, min(self.conf.number_inputs, MAX_NUMBER_COUNTERS) + 1)
         ]
 
     @override
@@ -484,7 +486,7 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         self.conf.number_inputs = len(input_items)
         self.conf.number_outputs = len(output_items)
 
-        for item in input_items:
+        for item in input_items[:MAX_NUMBER_COUNTERS]:
             if (item_id := item.get("id")) is None:
                 raise DeviceParseError(
                     f"Unable to find id attribute in {self.conf.context}"
@@ -615,7 +617,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         result = int.from_bytes(data_part, signed=True)
         return result / 10
 
-    async def get_counters(self) -> dict:
+    async def _get_counters(self) -> dict:
         result: dict = {}
 
         result_pkt = await self.api_client.write_command(
@@ -630,7 +632,9 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         bits = result_pkt.data[0]
         bytes_per_counter = bits // 8
 
-        expected_bytes = 1 + (self.conf.number_inputs * bytes_per_counter)
+        number_counters = min(self.conf.number_inputs, MAX_NUMBER_COUNTERS)
+
+        expected_bytes = 1 + (number_counters * bytes_per_counter)
 
         if len(result_pkt.data) < expected_bytes:
             raise DeviceParseError(
@@ -640,7 +644,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         result_data_bytes = result_pkt.data[1:]
 
-        for i in range(1, self.conf.number_inputs + 1):
+        for i in range(1, number_counters + 1):
             start = (i - 1) * bytes_per_counter
             end = start + bytes_per_counter
             counter_bytes = result_data_bytes[start:end]
@@ -686,7 +690,7 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         parsed_data["switch"] = await self.get_state_coils()
         parsed_data["input"] = await self._get_inputs()
-        parsed_data["counter"] = await self.get_counters()
+        parsed_data["counter"] = await self._get_counters()
 
         semantic_key = self._generate_semantic_key(self.TEMPERATURE_SNS_TYPE, "1")
         parsed_data["temperature"][semantic_key] = await self._get_temp()
@@ -817,10 +821,10 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
     @override
     async def reset_all_counters(self) -> None:
-        counters: dict[str, int] = await self.get_counters()
+        counters: dict[str, int] = await self._get_counters()
 
         pairs: list[tuple[int, int]] = []
-        for i in range(1, self.conf.number_inputs + 1):
+        for i in range(1, min(self.conf.number_inputs, MAX_NUMBER_COUNTERS) + 1):
             semantic_key = self._generate_semantic_key(self.PULSES, str(i))
             val = counters.get(semantic_key)
 
@@ -882,8 +886,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
                 f"Expected 3 bytes, got {len(pkt.data)}."
             )
 
-        number_outputs = pkt.data[0]
-        number_inputs = pkt.data[1]
+        number_inputs = pkt.data[0]
+        number_outputs = pkt.data[1]
         return number_outputs, number_inputs
 
     @staticmethod
@@ -899,13 +903,15 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         result_data_bytes = result_pkt.data
 
-        if len(result_data_bytes) < conf.number_inputs:
+        number_of_counters = min(conf.number_inputs, MAX_NUMBER_COUNTERS)
+
+        if len(result_data_bytes) < number_of_counters:
             raise DeviceParseError(
                 f"Invalid counter modes payload for {conf.context}. "
-                f"Expected at least {conf.number_inputs} bytes, got {len(result_data_bytes)}."
+                f"Expected {number_of_counters} bytes, got {len(result_data_bytes)}."
             )
 
-        for i in range(1, conf.number_inputs + 1):
+        for i in range(1, number_of_counters + 1):
             counter_mode_int_data = result_data_bytes[i - 1]
 
             # here we need only 2 first bits
