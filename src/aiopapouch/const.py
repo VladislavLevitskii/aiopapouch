@@ -1,5 +1,7 @@
 """File that contains constant values."""
 
+from enum import StrEnum
+
 DOMAIN = "papouch"
 AUTH_FAILED_ERROR = 401
 DEFAULT_WEB_PORT = 80
@@ -16,3 +18,14 @@ TCP_SERVER_MODE_INDEX = 0
 TCP_CLIENT_MODE_INDEX = 1
 UDP_MODE_INDEX = 2
 WEB_MODE_INDEX = 3
+
+CONNECTION_TYPE = "connection_type"
+
+
+class ConnectionType(StrEnum):
+    """Enum that represents all possible connection types of the integration."""
+
+    NETWORK = "network"
+    NETWORK_HUB = "network_hub"
+    SERIAL = "serial"
+    TCP = "tcp"

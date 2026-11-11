@@ -5,6 +5,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
 from aiopapouch.devices.papago import (
     PapagoETH_1TH_2DI_1DO,
     async_setup_network_papago,
@@ -24,43 +25,71 @@ VALID_INFO_XML = """
 
 SETTINGS_2TH_XML = """
 <root>
-<set box="1" dhcp="0" ip="192.168.3.43" mask="255.255.240.0" gate="192.168.1.201" dip="192.168.1.201" wport="80" lport="10001" mport="502" tcpto="0"/>
+<set box="1" dhcp="0" ip="192.168.3.43" mask="255.255.240.0"
+gate="192.168.1.201" dip="192.168.1.201"
+wport="80" lport="10001" mport="502" tcpto="0"/>
 <set box="2" telnet="1" upd="1" usrset="0" admset="0"/>
-<set box="3" domain="" ip="0.0.0.0" sport="25" from="" to="" host="" name="" enbwatch="0" auth="0" pswset="0"/>
-<set box="4" enb="1" ip="0.0.0.0" per="0" readcom="public" writecom="private" enbtrap="0" enbwatch="0"/>
-<set box="5" mode="0" path="" ip="0.0.0.0" domain="" per="0" keyset="0" pswset="0" user="" port="0" change="0" qos="0"/>
-<set box="8" name="NONAME" lang="e" enbntp="0" ipntp="0.0.0.0" zone="41" daylight="1" units="0"/>
-<set box="30" name="Senzor A" type="0" watch="0" max="100.0" min="0.0" hyst="0.0" watch2="0" max2="100.0" min2="0.0" hyst2="0.0" watch3="0" max3="125.0" min3="-40.0" hyst3="0.0"/>
-<set box="31" name="Senzor B" type="4" watch="0" max="125.0" min="-40.0" hyst="0.0" watch2="0" max2="100.0" min2="0.0" hyst2="0.0" watch3="0" max3="125.0" min3="-40.0" hyst3="0.0"/>
-<set box="12" type="Papago 2TH ETH" mac="00:80:A3:46:16:86" fw="3.1" sn="00530/08848" core="Papago 2TH ETH; v0530.01.18; N T"/>
+<set box="3" domain="" ip="0.0.0.0" sport="25" from="" to=""
+host="" name="" enbwatch="0" auth="0" pswset="0"/>
+<set box="4" enb="1" ip="0.0.0.0" per="0" readcom="public"
+writecom="private" enbtrap="0" enbwatch="0"/>
+<set box="5" mode="0" path="" ip="0.0.0.0" domain="" per="0"
+keyset="0" pswset="0" user="" port="0" change="0" qos="0"/>
+<set box="8" name="NONAME" lang="e" enbntp="0" ipntp="0.0.0.0"
+zone="41" daylight="1" units="0"/>
+<set box="30" name="Senzor A" type="0" watch="0" max="100.0"
+min="0.0" hyst="0.0" watch2="0" max2="100.0" min2="0.0" hyst2="0.0"
+watch3="0" max3="125.0" min3="-40.0" hyst3="0.0"/>
+<set box="31" name="Senzor B" type="4" watch="0" max="125.0"
+min="-40.0" hyst="0.0" watch2="0" max2="100.0" min2="0.0"
+hyst2="0.0" watch3="0" max3="125.0" min3="-40.0" hyst3="0.0"/>
+<set box="12" type="Papago 2TH ETH" mac="00:80:A3:46:16:86"
+fw="3.1" sn="00530/08848" core="Papago 2TH ETH; v0530.01.18; N T"/>
 </root>
 """
 
 SETTINGS_1TH_2DI_1DO_XML = """
 <root>
-<set box="1" dhcp="0" ip="192.168.3.44" mask="255.255.240.0" gate="192.168.1.201" dip="192.168.1.201" wport="80" lport="10001" mport="502" tcpto="0"/>
+<set box="1" dhcp="0" ip="192.168.3.44" mask="255.255.240.0"
+gate="192.168.1.201" dip="192.168.1.201" wport="80" lport="10001"
+mport="502" tcpto="0"/>
 <set box="2" telnet="1" upd="1" usrset="0" admset="0"/>
-<set box="3" domain="" ip="0.0.0.0" sport="25" from="" to="" host="" name="" period="0" startat="0" auth="0" pswset="0" enbwatch="0"/>
-<set box="4" enb="1" ip="0.0.0.0" per="0" readcom="public" writecom="private" enbtrap="0" enbwatch="0"/>
-<set box="5" mode="0" path="" sub="" ip="0.0.0.0" domain="" per="00000000" keyset="0" pswset="0" user="" port="0" change="0" qos="0"/>
-<set box="8" name="NONAME" lang="e" enbntp="0" ipntp="0.0.0.0" zone="41" daylight="1"/>
-<set box="12" type="Papago 1TH 2DI 1DO ETH" mac="00:80:A3:46:DF:57" fw="2.3" sn="01075/08144" core="Papago 1TH 2DI 1DO ETH; v1075.01.20; H3"/>
-<set box="30" sampl="0" nosns="0" out1name="-40" out1start="1" out1mode="0" out1pulsenb="0" out1puls="0.1" out1max="125.0" out1min="-55.0" out1hyst="0.0" out1qty="0"/>
+<set box="3" domain="" ip="0.0.0.0" sport="25" from="" to=""
+host="" name="" period="0" startat="0" auth="0" pswset="0" enbwatch="0"/>
+<set box="4" enb="1" ip="0.0.0.0" per="0" readcom="public"
+writecom="private" enbtrap="0" enbwatch="0"/>
+<set box="5" mode="0" path="" sub="" ip="0.0.0.0" domain=""
+per="00000000" keyset="0" pswset="0" user="" port="0" change="0" qos="0"/>
+<set box="8" name="NONAME" lang="e" enbntp="0" ipntp="0.0.0.0"
+zone="41" daylight="1"/>
+<set box="12" type="Papago 1TH 2DI 1DO ETH" mac="00:80:A3:46:DF:57"
+fw="2.3" sn="01075/08144" core="Papago 1TH 2DI 1DO ETH; v1075.01.20; H3"/>
+<set box="30" sampl="0" nosns="0" out1name="-40" out1start="1"
+out1mode="0" out1pulsenb="0" out1puls="0.1"
+out1max="125.0" out1min="-55.0" out1hyst="0.0" out1qty="0"/>
 <set box="31" enb="3" src="1" dst="1" dec="0" unit="" name="Input 139"/>
 <set box="32" enb="2" src="10" dst="1" dec="2" unit="Some2" name="Input 26"/>
-<set box="40" type="3" tunit="0" watch="0" max="125.0" min="-40.0" hyst="0.0" watch2="0" max2="100.0" min2="0.0" hyst2="0.0" watch3="0" max3="125.0" min3="-40.0" hyst3="0.0"/>
+<set box="40" type="3" tunit="0" watch="0" max="125.0"
+min="-40.0" hyst="0.0" watch2="0" max2="100.0"
+min2="0.0" hyst2="0.0" watch3="0" max3="125.0" min3="-40.0" hyst3="0.0"/>
 </root>
 """
 
 SETTINGS_5HDI_1DO_XML = """
 <root>
-<set box="1" dhcp="0" ip="192.168.3.45" mask="255.255.255.0" gate="0.0.0.0" dip="0.0.0.0" wport="80" lport="10001" mport="502" tcpto="0"/>
+<set box="1" dhcp="0" ip="192.168.3.45" mask="255.255.255.0"
+gate="0.0.0.0" dip="0.0.0.0" wport="80" lport="10001" mport="502" tcpto="0"/>
 <set box="2" telnet="1" upd="1" usrset="0" admset="0"/>
-<set box="3" domain="" ip="0.0.0.0" sport="25" from="" to="" host="" name="" period="0" startat="0" auth="0" pswset="0"/>
-<set box="4" enb="1" ip="0.0.0.0" per="0" readcom="public" writecom="private" enbtrap="0" enbwatch="0"/>
-<set box="5" mode="0" path="" sub="" ip="0.0.0.0" domain="" per="00000000" keyset="0" pswset="0" user="" port="0" change="0" qos="0"/>
-<set box="8" name="NONAME" lang="e" enbntp="0" ipntp="0.0.0.0" zone="186" daylight="1"/>
-<set box="12" type="Papago 5HDI 1DO ETH" mac="00:80:A3:44:DC:75" fw="2.1" sn="01218/00867" core="Papago 5HDI 1DO ETH; v1218.01.13"/>
+<set box="3" domain="" ip="0.0.0.0" sport="25" from="" to=""
+host="" name="" period="0" startat="0" auth="0" pswset="0"/>
+<set box="4" enb="1" ip="0.0.0.0" per="0" readcom="public"
+writecom="private" enbtrap="0" enbwatch="0"/>
+<set box="5" mode="0" path="" sub="" ip="0.0.0.0" domain=""
+per="00000000" keyset="0" pswset="0" user="" port="0" change="0" qos="0"/>
+<set box="8" name="NONAME" lang="e" enbntp="0" ipntp="0.0.0.0"
+zone="186" daylight="1"/>
+<set box="12" type="Papago 5HDI 1DO ETH" mac="00:80:A3:44:DC:75"
+fw="2.1" sn="01218/00867" core="Papago 5HDI 1DO ETH; v1218.01.13"/>
 <set box="30" out1start="0" out1name="Output" sampl="20"/>
 <set box="31" enb="3" src="1" dst="1" dec="0" unit="" name="Input 1"/>
 <set box="32" enb="3" src="1" dst="1" dec="0" unit="" name="Input 2"/>
@@ -75,7 +104,9 @@ DATA_XML = """
 <din id="1" name="Input 139" bin="0" val="28 " raw="28"/>
 <din id="2" name="Input 26" bin="0" val="60777.10 Some2" raw="607771"/>
 <dout id="1" name="-40" bin="1" mode="0" qty="0"/>
-<sns id="1" type="1" status="0" unit="0" val="25.2" w-min="" w-max="" type2="2" status2="0" unit2="0" val2="39.9" w-min2="" w-max2="" type3="3" status3="0" unit3="0" val3="10.6" w-min3="" w-max3=""/>
+<sns id="1" type="1" status="0" unit="0" val="25.2" w-min="" w-max=""
+type2="2" status2="0" unit2="0" val2="39.9" w-min2="" w-max2=""
+type3="3" status3="0" unit3="0" val3="10.6" w-min3="" w-max3=""/>
 <status level="2" location="NONAME" time="01/01/2024 12:00:26"/>
 </root>
 """
@@ -83,7 +114,10 @@ DATA_XML = """
 
 @pytest.fixture
 def http_client():
-    """Mock HTTP client returning valid base XMLs. (Defaults to 1TH 2DI 1DO to test all features)."""
+    """
+    Mock HTTP client returning valid base XMLs.
+    (Defaults to 1TH 2DI 1DO to test all features).
+    """
     client = AsyncMock()
 
     # 1TH 2DI DO because it containes everything
@@ -137,7 +171,10 @@ async def test_setup_network_papago_missing_mac(http_client):
 
 @pytest.mark.asyncio
 async def test_papago_get_fresh_data_valid(http_client):
-    """Test parsing of sensors, inputs, counters, and outputs using the valid global constants."""
+    """
+    Test parsing of sensors, inputs, counters,
+    and outputs using the valid global constants.
+    """
     http_client.get_device_info = AsyncMock(
         return_value=("Papago 1TH 2DI 1DO ETH", "NONAME")
     )
@@ -183,7 +220,8 @@ async def test_papago_get_fresh_data_valid(http_client):
         (
             """<root>
                 <dout bin="1" mode="0" qty="0" />
-                <sns id="99" name="Novy Senzor" type="1" status="0" unit="0" val="12.3" />
+                <sns id="99" name="Novy Senzor" type="1" status="0"
+                unit="0" val="12.3" />
                 <din id="1" bin="0" val="invalid_float" />
                 <din id="2" bin="0" val="" />
             </root>""",
@@ -197,7 +235,10 @@ async def test_papago_get_fresh_data_valid(http_client):
     ],
 )
 async def test_papago_get_fresh_data_edge_cases(http_client, data_xml, expected):
-    """Test silent fails and error statuses override fresh data without breaking."""
+    """
+    Test silent fails and error statuses override
+    fresh data without breaking.
+    """
 
     http_client.get_device_info = AsyncMock(
         return_value=("Papago 1TH 2DI 1DO ETH", "NONAME")
@@ -256,7 +297,10 @@ async def test_papago_get_fresh_data_invalid_xml(http_client, invalid_xml):
 
 @pytest.mark.asyncio
 async def test_papago_get_fresh_data_unknown_sensor_type(http_client):
-    """Test behavior when device sends an unknown sensor type (missing in TYPE_MAPPING)."""
+    """
+    Test behavior when device sends an unknown sensor type
+    (missing in TYPE_MAPPING).
+    """
 
     http_client.get_device_info = AsyncMock(
         return_value=("Papago 1TH 2DI 1DO ETH", "NONAME")
@@ -276,12 +320,16 @@ async def test_papago_get_fresh_data_unknown_sensor_type(http_client):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status_code", ["2", "3"])
 async def test_papago_get_fresh_data_limit_statuses(http_client, status_code):
-    """Test that limits exceeded/dropped statuses (2 and 3) successfully parse the value."""
+    """
+    Test that limits exceeded/dropped statuses (2 and 3)
+    successfully parse the value.
+    """
 
     http_client.get_device_info = AsyncMock(
         return_value=("Papago 1TH 2DI 1DO ETH", "NONAME")
     )
-    http_client.fetch_data.return_value = f'<root><sns id="1" type="1" status="{status_code}" unit="0" val="25.5" /></root>'
+    http_client.fetch_data.return_value = f'<root> \
+    <sns id="1" type="1" status="{status_code}" unit="0" val="25.5" /></root>'
 
     device = await async_setup_network_papago(http_client)
     data = await device.get_fresh_data()
@@ -431,7 +479,10 @@ async def test_get_supported_static_io(
     expected_switches,
     expected_numbers,
 ):
-    """Test binary sensors, switches and number entities that are statically determined from settings."""
+    """
+    Test binary sensors, switches and number entities
+    that are statically determined from settings.
+    """
 
     http_client.get_device_info = AsyncMock(return_value=(device_name, "NONAME"))
     http_client.fetch_settings.return_value = settings_xml
@@ -488,7 +539,10 @@ async def test_get_supported_static_io(
 async def test_get_supported_ui_elements(
     http_client, device_name, settings_xml, expected_buttons, expected_select_categories
 ):
-    """Test configuration of actionable UI elements (buttons and selects) heavily affected by device type."""
+    """
+    Test configuration of actionable UI elements
+    (buttons and selects) heavily affected by device type.
+    """
 
     http_client.get_device_info = AsyncMock(return_value=(device_name, "NONAME"))
     http_client.fetch_settings.return_value = settings_xml
@@ -509,8 +563,10 @@ async def test_get_supported_ui_elements(
 async def test_get_supported_sensors_dynamic(http_client):
     """
     Test supported sensors for METEO.
-    Sensors require get_fresh_data to run first because they depend on 'sub_sensors' discovery.
-    This also tests that unknown sensor types are silently ignored, and rain/wind logic formats correctly.
+    Sensors require get_fresh_data to run first because they
+    depend on 'sub_sensors' discovery.
+    This also tests that unknown sensor types are silently ignored,
+    and rain/wind logic formats correctly.
     """
 
     http_client.get_device_info = AsyncMock(return_value=("Papago METEO ETH", "NONAME"))
@@ -840,7 +896,10 @@ async def test_get_select_option_base_logic(http_client):
 
 @pytest.mark.asyncio
 async def test_get_select_option_none_returns(http_client):
-    """Coverage for returning None in get_select_option when data is missing or invalid."""
+    """
+    Coverage for returning None in get_select_option
+    when data is missing or invalid.
+    """
 
     http_client.get_device_info = AsyncMock(return_value=("Papago 2TH ETH", "NONAME"))
     http_client.fetch_settings.return_value = SETTINGS_2TH_XML

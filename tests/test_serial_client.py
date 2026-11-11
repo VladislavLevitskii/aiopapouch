@@ -6,6 +6,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pap_spinel import SpinelError, SpinelTransportError
+from pap_spinel.packet import INST_INFO, INST_LOC, INST_SN
+
 from aiopapouch.client import PapouchSerialClient
 from aiopapouch.const import INST_NEW_ADDR, SERIAL_BROADCAST_ADDRESS
 from aiopapouch.exceptions import (
@@ -13,9 +16,6 @@ from aiopapouch.exceptions import (
     DeviceLogicError,
     DeviceParseError,
 )
-from pap_spinel.packet import INST_INFO, INST_LOC, INST_SN
-
-from pap_spinel import SpinelError, SpinelTransportError
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from aiopapouch.devices.quido import QuidoETH, async_setup_network_quido
 from aiopapouch.exceptions import (
     DeviceLogicError,
@@ -13,16 +14,23 @@ from aiopapouch.exceptions import (
 )
 
 VALID_QUIDO_INFO = """
-<root><heartbeat level="1" location="NONAME" ver="85" lang="e" unit="C" device="Quido ETH 4/4" mode="3" mobile="1"/></root>
+<root><heartbeat level="1" location="NONAME" ver="85"
+lang="e" unit="C" device="Quido ETH 4/4" mode="3" mobile="1"/></root>
 """
 
 VALID_QUIDO_SETTINGS = """
 <root>
-<set box="1" dhcp="0" ip="192.168.3.40" mask="255.255.240.0" gate="192.168.1.201" dip="192.168.1.201" wport="80" lport="10001" rip="192.168.1.50" rport="19999" mport="502" mode="3" single="0" sx_aut="0" tcpto="0"/>
+<set box="1" dhcp="0" ip="192.168.3.40" mask="255.255.240.0"
+gate="192.168.1.201" dip="192.168.1.201" wport="80" lport="10001"
+rip="192.168.1.50" rport="19999" mport="502" mode="3" single="0"
+sx_aut="0" tcpto="0"/>
 <set box="2" telnet="1" upd="1" mobile="0" usrset="0" admset="0"/>
-<set box="3" enbmail="0" domain="" ip="0.0.0.0" sport="25" from="" to="" enbwatch="0" enbch="0" enbauth="0"/>
-<set box="4" enb="1" ip="0.0.0.0" enbtrap="0" enbwatch="0" enbch="0" readcom="public" writecom="private"/>
-<set box="5" domain="" ip="192.168.1.21" port="8090" changes="1" per="0" path="/change"/>
+<set box="3" enbmail="0" domain="" ip="0.0.0.0" sport="25" from=""
+to="" enbwatch="0" enbch="0" enbauth="0"/>
+<set box="4" enb="1" ip="0.0.0.0" enbtrap="0" enbwatch="0"
+enbch="0" readcom="public" writecom="private"/>
+<set box="5" domain="" ip="192.168.1.21" port="8090" changes="1"
+per="0" path="/change"/>
 <set box="8" name="NONAME" units="C"/>
 <set box="10">
 <item id="1" name="" hide="0" change="0" sampl="20" cnt="0" on="2" off="4"/>
@@ -31,15 +39,20 @@ VALID_QUIDO_SETTINGS = """
 <item id="4" name="" hide="0" change="1" sampl="20" cnt="3" on="3" off="4"/>
 </set>
 <set box="11">
-<item id="1" name="" hide="0" change="0" on="3" off="4" mde="0" len="1" tx="1250" ty="-550" tend="0" nosns="0"/>
-<item id="2" name="" hide="0" change="1" on="3" off="4" mde="0" len="0" tx="1250" ty="-550" tend="0" nosns="0"/>
-<item id="3" name="" hide="0" change="1" on="3" off="4" mde="0" len="0" tx="1250" ty="-550" tend="0" nosns="0"/>
-<item id="4" name="" hide="0" change="1" on="3" off="4" mde="0" len="0" tx="1250" ty="-550" tend="0" nosns="0"/>
+<item id="1" name="" hide="0" change="0" on="3" off="4" mde="0"
+len="1" tx="1250" ty="-550" tend="0" nosns="0"/>
+<item id="2" name="" hide="0" change="1" on="3" off="4" mde="0"
+len="0" tx="1250" ty="-550" tend="0" nosns="0"/>
+<item id="3" name="" hide="0" change="1" on="3" off="4" mde="0"
+len="0" tx="1250" ty="-550" tend="0" nosns="0"/>
+<item id="4" name="" hide="0" change="1" on="3" off="4" mde="0"
+len="0" tx="1250" ty="-550" tend="0" nosns="0"/>
 </set>
 <set box="13">
 <item id="1" hide="0" enbw="1" th="40.0" tl="5.0" hys="1.0" snd="0"/>
 </set>
-<set box="12" mac="00:80:A3:F7:60:FB" sn="00254/05881" info="Quido ETH 4/4; v0254.04.51; f66 97; t1"/>
+<set box="12" mac="00:80:A3:F7:60:FB" sn="00254/05881"
+info="Quido ETH 4/4; v0254.04.51; f66 97; t1"/>
 </root>
 """
 

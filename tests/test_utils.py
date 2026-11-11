@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from aiopapouch.exceptions import (
     DeviceConnectionError,
     DeviceLogicError,
@@ -138,7 +139,11 @@ def test_parse_device_serial_number_invalid_type(invalid_input):
     ],
 )
 def test_parse_device_serial_number_invalid_length(invalid_bytes):
-    """Test that DeviceParseError is raised when payload length is not exactly 4 bytes."""
+    """
+    Test that DeviceParseError is raised
+    when payload length is not exactly 4 bytes.
+    """
+
     with pytest.raises(DeviceParseError):
         parse_device_serial_number(invalid_bytes)
 
@@ -260,7 +265,10 @@ async def test_assign_next_available_address_details_timeout(mock_details, mock_
 async def test_assign_next_available_address_parse_error_bubbles_up(
     mock_details, mock_sleep
 ):
-    """Test that if device sends corrupted data during verification, it crashes the loop."""
+    """
+    Test that if device sends corrupted data during verification,
+    it crashes the loop.
+    """
 
     api_client = AsyncMock()
 

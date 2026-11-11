@@ -97,7 +97,10 @@ async def assign_next_available_address(
     used_addresses: list[int],
     serial_number: str,
 ) -> tuple[int | None, str | None]:
-    """Finds, sets, and verifies the next available address. Returns (new_address, device_name)."""
+    """
+    Finds, sets, and verifies the next available address.
+    Returns (new_address, device_name).
+    """
 
     failed_attempts = 0
 
@@ -133,7 +136,10 @@ async def assign_next_available_address(
 async def get_device_details(
     api_client: PapouchSerialClient, address: int
 ) -> tuple[str, str, int]:
-    """Test device connection and return name, serial number and device's address (if broadcast was used)."""
+    """
+    Test device connection and return name,
+    serial number and device's address (if broadcast was used).
+    """
 
     pkt_man_data = await api_client.get_man_data(
         address, f"Unknown device with {address} address"
@@ -152,11 +158,14 @@ async def get_device_details(
 def require_attr(
     element: ET.Element, attr_name: str, tag_context: str, context: str
 ) -> str:
-    """Strictly get an attribute from XML element or raise DeviceParseError."""
+    """
+    Strictly get an attribute from XML element or raise DeviceParseError.
+    """
     val = element.attrib.get(attr_name)
     if val is None:
         raise DeviceParseError(
-            f"Missing required attribute '{attr_name}' in <{element.tag}> ({tag_context}) "
+            f"Missing required attribute '{attr_name}'"
+            f"in <{element.tag}> ({tag_context}) "
             f"for device: {context}"
         )
     return val

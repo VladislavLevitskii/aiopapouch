@@ -6,6 +6,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from aiopapouch.client import (
     TCP_CLIENT_MODE_INDEX,
     TCP_SERVER_MODE_INDEX,
@@ -29,10 +30,15 @@ from aiopapouch.exceptions import (
 
 VALID_EDGAR_SETTINGS = """
 <root>
-    <set box="1" dhcp="0" ip="192.168.3.32" mask="255.255.0.0" gate="192.168.1.201" dip="0.0.0.0" wport="80" lport="10001" comm="1" rip="192.168.1.30" rport="10001" mtu="1400" keep="45"/>
+    <set box="1" dhcp="0" ip="192.168.3.32" mask="255.255.0.0"
+    gate="192.168.1.201" dip="0.0.0.0" wport="80" lport="10001"
+    comm="1" rip="192.168.1.30" rport="10001" mtu="1400" keep="45"/>
+
     <set box="2" admset="0"/>
-    <set box="5" domain="" ip="192.168.1.102" port="8811" dir="" getscr="" guid="" keyset="0"/>
-    <set box="14" port="RS485" speed="2" mode="0" flow="0" timeout="1" byte="00"/>
+    <set box="5" domain="" ip="192.168.1.102" port="8811" dir=""
+    getscr="" guid="" keyset="0"/>
+    <set box="14" port="RS485" speed="2" mode="0" flow="0"
+    timeout="1" byte="00"/>
     <set box="8" name="" lang="e" pwrout="0"/>
     <set box="12" type="Edgar ETH" mac="00:80:A3:B5:D9:1E" fw="1.2"/>
 </root>
@@ -292,11 +298,13 @@ class MockStreamWriter:
 async def test_async_download_gnome_config(mock_sleep, mock_open_connection):
     """Test Telnet config download loop."""
 
-    mock_reader = MockStreamReader([
-        GNOME_INIT_TEXT,
-        b"Press Enter...",
-        b"Your choice ?",
-    ])
+    mock_reader = MockStreamReader(
+        [
+            GNOME_INIT_TEXT,
+            b"Press Enter...",
+            b"Your choice ?",
+        ]
+    )
     mock_writer = MockStreamWriter()
     mock_open_connection.return_value = (mock_reader, mock_writer)
 
@@ -335,11 +343,11 @@ async def test_async_set_gnome_tcp_server(
         b"Press Enter...",
         b"Your choice ?",
         b"Baudrate:",
-        asyncio.TimeoutError(),
+        TimeoutError(),
         b"I/F Mode:",
-        asyncio.TimeoutError(),
+        TimeoutError(),
         b"ConnectMode :",
-        asyncio.TimeoutError(),
+        TimeoutError(),
         b"Your choice ?",
     ]
     mock_reader = MockStreamReader(chunks)
@@ -366,7 +374,7 @@ async def test_async_set_gnome_tcp_server_menu_timeout(
 ):
     """Test Gnome throws error if it never reaches 'Your choice ?'."""
 
-    chunks = [GNOME_INIT_TEXT, asyncio.TimeoutError()]
+    chunks = [GNOME_INIT_TEXT, TimeoutError()]
     mock_reader = MockStreamReader(chunks)
     mock_writer = MockStreamWriter()
     mock_open_connection.return_value = (mock_reader, mock_writer)
@@ -472,11 +480,13 @@ async def test_gnome_telnet_empty_chunks(mock_sleep, mock_open_connection, http_
 async def test_gnome_telnet_timeouts(mock_sleep, mock_open_connection, http_client):
     """Check Timeouts are suppressed."""
 
-    mock_reader = MockStreamReader([
-        b"init",
-        asyncio.TimeoutError(),
-        asyncio.TimeoutError(),
-    ])
+    mock_reader = MockStreamReader(
+        [
+            b"init",
+            TimeoutError(),
+            TimeoutError(),
+        ]
+    )
     mock_writer = MockStreamWriter()
     mock_open_connection.return_value = (mock_reader, mock_writer)
 
@@ -484,14 +494,16 @@ async def test_gnome_telnet_timeouts(mock_sleep, mock_open_connection, http_clie
     assert init == b"init"
     assert conf == b""
 
-    mock_reader = MockStreamReader([
-        GNOME_INIT_TEXT,
-        b"Your choice ?",
-        b"Baudrate",
-        asyncio.TimeoutError(),
-        b"Your choice ?",
-        asyncio.TimeoutError(),
-    ])
+    mock_reader = MockStreamReader(
+        [
+            GNOME_INIT_TEXT,
+            b"Your choice ?",
+            b"Baudrate",
+            TimeoutError(),
+            b"Your choice ?",
+            TimeoutError(),
+        ]
+    )
     mock_open_connection.return_value = (mock_reader, mock_writer)
     gnome = Gnome(http_client, "MAC", "Gnome", 10001, 1)
 
@@ -535,7 +547,7 @@ async def test_gnome_telnet_unreachable_lines(
         b"Press Enter...",
         b"Your choice ?",
         b"",
-        asyncio.TimeoutError(),
+        TimeoutError(),
     ]
     mock_reader = MockStreamReader(chunks)
     mock_writer = MockStreamWriter()

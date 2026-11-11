@@ -65,7 +65,8 @@ class THT2(PapouchSerialDevice):
 
         if len(data) not in (0, 4, 8, 12):
             raise DeviceLogicError(
-                f"Invalid payload length: {len(data)}, expected 4, 8, or 12 bytes, in {self.conf.context}"
+                f"Invalid payload length: {len(data)},  \
+                expected 4, 8, or 12 bytes, in {self.conf.context}"
             )
 
         parsed_data: dict[str, dict[str, Any]] = {"sensor": {}}
@@ -137,14 +138,16 @@ class THT2(PapouchSerialDevice):
             # sns_type is always valid (1 - 3)
             data_type = self.TYPE_MAPPING[sns_type]
 
-            sensors.append({
-                "item_id": item_id,
-                "value_key": semantic_key,
-                "type": "sensor",
-                "data_type": data_type,
-                "name": None,
-                "unit": self._get_unit(sns_type, unit_code),
-            })
+            sensors.append(
+                {
+                    "item_id": item_id,
+                    "value_key": semantic_key,
+                    "type": "sensor",
+                    "data_type": data_type,
+                    "name": None,
+                    "unit": self._get_unit(sns_type, unit_code),
+                }
+            )
 
         return sensors
 

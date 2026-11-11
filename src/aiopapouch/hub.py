@@ -6,11 +6,10 @@ from abc import ABC
 from typing import Any, override
 
 import aiohttp
-
 from pap_spinel import SpinelTransportError, TcpTransport
 
 from .client import PapouchHTTPClient, PapouchSerialClient
-from .const import SERIAL_BROADCAST_ADDRESS
+from .const import SERIAL_BROADCAST_ADDRESS, ConnectionType
 from .devices import (
     PapouchNetworkDevice,
     PapouchSerialDevice,
@@ -225,7 +224,8 @@ class SerialHub(Hub[PapouchSerialDevice]):
             )
         except DeviceConnectionError as err:
             raise DeviceConnectionError(
-                "Unable to discover device. There are likely multiple devices on the bus."
+                "Unable to discover device. "
+                "There are likely multiple devices on the bus."
             ) from err
 
         if address in self.used_addresses:
@@ -237,7 +237,10 @@ class SerialHub(Hub[PapouchSerialDevice]):
         await self.create_and_add_device(address)
 
     def remove_device_by_address(self, address: int) -> None:
-        """Remove the device from the hub using its address, raise DeviceLogicError when missing."""
+        """
+        Remove the device from the hub using its address,
+        raise DeviceLogicError when missing.
+        """
 
         for device in self.devices:
             if device.conf.address == address:
@@ -269,13 +272,19 @@ class SerialHub(Hub[PapouchSerialDevice]):
         await self.create_and_add_device(new_address)
 
     def get_device_by_address(self, address: int) -> PapouchSerialDevice:
-        """Find and return a device by its bus address, raise DeviceLogicError if not found."""
+        """
+        Find and return a device by its bus address,
+        raise DeviceLogicError if not found.
+        """
 
         for device in self.devices:
             if device.conf.address == address:
                 return device
 
-        raise DeviceLogicError(f"Device with address {address} is not in the hub.")
+        raise DeviceLogicError(
+            f"Device with address {address} \
+            is not in the hub."
+        )
 
 
 class NetworkHub(Hub[PapouchNetworkDevice]):
@@ -325,7 +334,9 @@ class NetworkHub(Hub[PapouchNetworkDevice]):
         this method will ignore this device.
         """
 
-        supported_devices = await async_discover_papouch_devices(self.session)
+        supported_devices = await async_discover_papouch_devices(
+            self.session, ConnectionType.NETWORK
+        )
         available_device_ips = {
             ip for ip in supported_devices if ip not in self.used_ips
         }
@@ -341,7 +352,10 @@ class NetworkHub(Hub[PapouchNetworkDevice]):
                 )
 
     def remove_device_by_ip(self, ip_address: str) -> None:
-        """Remove the device from the hub using its IP, raise DeviceLogicError when missing."""
+        """
+        Remove the device from the hub using its IP,
+        raise DeviceLogicError when missing.
+        """
 
         for device in self.devices:
             if device.api_client.ip_address == ip_address:
@@ -351,7 +365,10 @@ class NetworkHub(Hub[PapouchNetworkDevice]):
         raise DeviceLogicError(f"Device with IP {ip_address} is not in the hub.")
 
     def get_device_by_ip(self, ip_address: str) -> PapouchNetworkDevice:
-        """Find and return a device by its IP address, raise DeviceLogicError if not found."""
+        """
+        Find and return a device by its IP address,
+        raise DeviceLogicError if not found.
+        """
 
         for device in self.devices:
             if device.api_client.ip_address == ip_address:

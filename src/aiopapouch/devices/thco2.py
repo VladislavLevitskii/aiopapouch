@@ -70,7 +70,8 @@ class THCO2(PapouchSerialDevice):
 
         if len(data) != 11:
             raise DeviceLogicError(
-                f"Invalid payload length: {len(data)} expected: 11, in {self.conf.context}"
+                f"Invalid payload length: {len(data)} \
+                expected: 11, in {self.conf.context}"
             )
 
         status = data[0]
@@ -139,14 +140,16 @@ class THCO2(PapouchSerialDevice):
 
             data_type = self.TYPE_MAPPING[sns_type]
 
-            sensors.append({
-                "item_id": item_id,
-                "value_key": semantic_key,
-                "type": "sensor",
-                "data_type": data_type,
-                "name": None,
-                "unit": self._get_unit(sns_type, unit_code),
-            })
+            sensors.append(
+                {
+                    "item_id": item_id,
+                    "value_key": semantic_key,
+                    "type": "sensor",
+                    "data_type": data_type,
+                    "name": None,
+                    "unit": self._get_unit(sns_type, unit_code),
+                }
+            )
 
         return sensors
 

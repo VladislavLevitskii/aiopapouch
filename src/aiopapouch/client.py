@@ -8,8 +8,6 @@ from typing import Any
 
 import aiohttp
 import defusedxml.ElementTree as defused_ET
-from pap_spinel.packet import INST_INFO, INST_LOC, INST_SN
-
 from pap_spinel import (
     Packet97,
     SpinelClient,
@@ -17,6 +15,7 @@ from pap_spinel import (
     SpinelTransport,
     SpinelTransportError,
 )
+from pap_spinel.packet import INST_INFO, INST_LOC, INST_SN
 
 from .const import INST_NEW_ADDR, SERIAL_BROADCAST_ADDRESS
 from .exceptions import (
@@ -99,7 +98,10 @@ class PapouchHTTPClient:
         return await self._fetch(SETTINGS_URL)
 
     async def get_device_info(self) -> tuple[str | None, str | None]:
-        """Return (device_name, device_location) if some of that is unavailable returns None."""
+        """
+        Return (device_name, device_location)
+        if some of that is unavailable returns None.
+        """
 
         info = await self.fetch_info()
 
@@ -294,11 +296,19 @@ class PapouchSerialClient:
         return await self.write_command(address, INST_INFO, context)
 
     async def get_man_data(self, address: int, context: str) -> Packet97:
-        """Get manufacturing data in Spinel97 packet. Context is used for error message."""
+        """
+        Get manufacturing data in Spinel97 packet.
+        Context is used for error message.
+        """
+
         return await self.write_command(address, INST_SN, context)
 
     async def get_location(self, address: int, context: str) -> Packet97:
-        """Get location in Spinel97 packet. Context is used for error message."""
+        """
+        Get location in Spinel97 packet.
+        Context is used for error message.
+        """
+
         return await self.write_command(address, INST_LOC, context)
 
     async def set_address(

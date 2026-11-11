@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aiopapouch"
-version = "0.4.5"
+version = "0.4.6"
 description = "API client and device models for Papouch's devices"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [
     { name = "VladislavLevitskii", email = "vladlevitskii@gmail.com" }
@@ -16,6 +16,19 @@ dependencies = [
     "aiohttp>=3.0.0",
     "defusedxml>=0.7.1",
     "pap_spinel>=0.1.4"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff",
+    "mypy",
+
+    "pytest-xdist",
+    "pytest-asyncio",
+    "pytest-mock",
+
+    "types-defusedxml"
 ]
 
 [project.urls]
@@ -32,3 +45,6 @@ exclude_lines = [
     "pragma: no cover",
     "@abstractmethod",
 ]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

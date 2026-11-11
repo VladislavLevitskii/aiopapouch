@@ -48,7 +48,6 @@ The library provides methods to work with these maps. `_get_unit` looks into the
 
 ```python
 self.conf.unit = self._get_unit(self.TEMPERATURE_SNS_TYPE, "0")
-
 ```
 
 The code above returns the first unit in the temperature block ("°C").

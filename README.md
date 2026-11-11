@@ -92,6 +92,7 @@ import aiohttp
 from aiopapouch import NetworkHub
 from aiopapouch.exceptions import DeviceLogicError
 
+
 async def main():
     # Initialize the shared aiohttp client session
     async with aiohttp.ClientSession() as session:
@@ -118,9 +119,9 @@ async def main():
         for device in hub:
             print(f"Device: {device.conf.name} - IP: {device.api_client.ip_address}")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
 ```
 
 ### 2. Network Spinel Usage Example (TCP)
@@ -131,10 +132,10 @@ For devices that use the Spinel protocol over an Ethernet connection, the `Netwo
 import asyncio
 from aiopapouch.hub import NetworkSpinelHub
 
+
 async def main():
     # Context manager ensures all TCP ports are automatically closed on exit
     async with NetworkSpinelHub() as hub:
-
         # Add Spinel device by its IP and Port
         await hub.create_and_add_device("192.168.3.40", 10001)
 
@@ -145,9 +146,9 @@ async def main():
         for device in hub:
             print(f"Serial Device Context: {device.conf.context}")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
 ```
 
 ### 3. Serial RS485 Usage Example
@@ -164,6 +165,7 @@ from aiopapouch import SerialHub
 from aiopapouch.client import PapouchSerialClient
 from pap_spinel import TcpTransport, SerialTransport
 
+
 async def main():
     # You can use either a TCP Gateway or Direct Serial connection:
     transport = TcpTransport("192.168.3.33", 10001)
@@ -174,7 +176,6 @@ async def main():
 
     # The async context manager automatically calls client.close() when done
     async with SerialHub(client) as hub:
-
         # Option A: Plug & Play - Auto-detect a single connected device
         # await hub.discover_and_add_single_device()
 
@@ -192,9 +193,9 @@ async def main():
         for device in hub:
             print(f"Device: {device.conf.name} - Address: {device.conf.address}")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
 ```
 
 ### Exceptions
@@ -228,6 +229,7 @@ import asyncio
 import aiohttp
 from aiopapouch import PapouchHTTPClient, create_network_device
 
+
 async def main():
     async with aiohttp.ClientSession() as session:
         client = PapouchHTTPClient("192.168.1.100", session)
@@ -256,7 +258,7 @@ async def main():
         # Decrease the counter on input "1" by a specific value
         await device.set_number_value("decrease_counter", "1", 10)
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
 ```

@@ -226,7 +226,7 @@ class PapagoETH(PapouchNetworkDevice, ABC):
                 parts = val_str.split()
                 clean_val = parts[0]
                 parsed_data["counter"][semantic_key] = float(clean_val)
-            except (ValueError, IndexError):
+            except ValueError, IndexError:
                 parsed_data["counter"][semantic_key] = None
 
     async def _parse_dout_element(
@@ -254,10 +254,12 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             sensor_name = self.conf.sensors.get(item_id, {}).get(
                 "name", f"Sensor {item_id}"
             )
-            buttons.append({
-                "cmd": f"set_sensor_{item_id}",
-                "name": sensor_name,
-            })
+            buttons.append(
+                {
+                    "cmd": f"set_sensor_{item_id}",
+                    "name": sensor_name,
+                }
+            )
         return buttons
 
     @override
@@ -275,26 +277,28 @@ class PapagoETH(PapouchNetworkDevice, ABC):
     def get_supported_numbers(self) -> list[dict[str, Any]]:
         result = []
         for item_id, input_data in self.conf.inputs.items():
-            result.extend([
-                {
-                    "item_id": item_id,
-                    "category": "decrease_counter",
-                    "type": "counter",
-                    "name": input_data.name,
-                    "min_value": 0,
-                    "max_value": (2**self.conf.size_counter_bits) - 1,
-                    "step": 10 ** (-int(input_data.decimal_count)),
-                },
-                {
-                    "item_id": str(item_id),
-                    "category": "set_counter",
-                    "type": "counter",
-                    "name": input_data.name,
-                    "min_value": 0,
-                    "max_value": (2**self.conf.size_counter_bits) - 1,
-                    "step": 10 ** (-int(input_data.decimal_count)),
-                },
-            ])
+            result.extend(
+                [
+                    {
+                        "item_id": item_id,
+                        "category": "decrease_counter",
+                        "type": "counter",
+                        "name": input_data.name,
+                        "min_value": 0,
+                        "max_value": (2**self.conf.size_counter_bits) - 1,
+                        "step": 10 ** (-int(input_data.decimal_count)),
+                    },
+                    {
+                        "item_id": str(item_id),
+                        "category": "set_counter",
+                        "type": "counter",
+                        "name": input_data.name,
+                        "min_value": 0,
+                        "max_value": (2**self.conf.size_counter_bits) - 1,
+                        "step": 10 ** (-int(input_data.decimal_count)),
+                    },
+                ]
+            )
         return result
 
     @override
@@ -302,15 +306,17 @@ class PapagoETH(PapouchNetworkDevice, ABC):
         sensors = []
 
         for item_id, item_data in self.conf.inputs.items():
-            sensors.append({
-                "item_id": item_id,
-                "value_key": self._generate_semantic_key(self.PULSES, item_id),
-                "type": "counter",
-                "data_type": "counter",
-                "name": item_data.name,
-                "use_custom_name": True,
-                "unit": item_data.unit,
-            })
+            sensors.append(
+                {
+                    "item_id": item_id,
+                    "value_key": self._generate_semantic_key(self.PULSES, item_id),
+                    "type": "counter",
+                    "data_type": "counter",
+                    "name": item_data.name,
+                    "use_custom_name": True,
+                    "unit": item_data.unit,
+                }
+            )
 
         for sensor_data in self.conf.sensors.values():
             sensor_name = sensor_data["name"]
@@ -339,14 +345,16 @@ class PapagoETH(PapouchNetworkDevice, ABC):
                         final_name = f"{sensor_name} Daily"
                         data_type = "precipitation_intensity"
 
-                sensors.append({
-                    "item_id": sub_id,
-                    "value_key": semantic_key,
-                    "type": "sensor",
-                    "data_type": data_type,
-                    "name": final_name,
-                    "unit": unit_str,
-                })
+                sensors.append(
+                    {
+                        "item_id": sub_id,
+                        "value_key": semantic_key,
+                        "type": "sensor",
+                        "data_type": data_type,
+                        "name": final_name,
+                        "unit": unit_str,
+                    }
+                )
 
         return sensors
 
@@ -367,20 +375,24 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             sensor_name = self.conf.sensors.get(item_id, {}).get(
                 "name", f"Sensor {item_id}"
             )
-            selects.append({
-                "item_id": item_id,
-                "category": "sensor_type",
-                "name": sensor_name,
-                "options": self.SENSOR_TYPES,
-            })
+            selects.append(
+                {
+                    "item_id": item_id,
+                    "category": "sensor_type",
+                    "name": sensor_name,
+                    "options": self.SENSOR_TYPES,
+                }
+            )
 
         for item_id, input_data in self.conf.inputs.items():
-            selects.append({
-                "item_id": str(int(item_id) + self.INPUT_ID_INCREMENT),
-                "category": "counter_mode",
-                "name": input_data.name,
-                "options": self.COUNTER_MODES,
-            })
+            selects.append(
+                {
+                    "item_id": str(int(item_id) + self.INPUT_ID_INCREMENT),
+                    "category": "counter_mode",
+                    "name": input_data.name,
+                    "options": self.COUNTER_MODES,
+                }
+            )
         return selects
 
     @override
@@ -409,7 +421,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
     async def execute_button_command(self, cmd_type: str) -> None:
         if "set_sensor" not in cmd_type:
             raise DeviceLogicError(
-                f"Unsupported command: {cmd_type}, in the device: {self.conf.context}"
+                f"Unsupported command: {cmd_type}, \
+                in the device: {self.conf.context}"
             )
 
         sensor_id = cmd_type.split("_")[2]
@@ -441,7 +454,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
         result_tag = find_tag(root, "result")
         if result_tag is not None and result_tag.attrib.get("status") not in ("1", "4"):
             raise DeviceResponseError(
-                f"{self.conf.context} returned an error while auto-detecting sensor, whole response: {response}"
+                f"{self.conf.context} returned an error \
+                while auto-detecting sensor, whole response: {response}"
             )
 
         for element in root.iter("set"):
@@ -458,7 +472,10 @@ class PapagoETH(PapouchNetworkDevice, ABC):
                     self.conf.sensors_types[s_id] = sns_type
 
     async def set_sensor_type(self, item_id: str, type_idx: str) -> None:
-        """Set sensor type by sensor id and type index (exact number that will be send to Meteo)."""
+        """
+        Set sensor type by sensor id and type index
+        (exact number that will be send to Meteo).
+        """
 
         await self._update_settings()
 
@@ -478,7 +495,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         if target_box is None:
             raise DeviceParseError(
-                f"Box {box_num} not found in settings, in the device: {self.conf.context}"
+                f"Box {box_num} not found in settings, \
+                in the device: {self.conf.context}"
             )
 
         safe_defaults = {
@@ -513,7 +531,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         payload_parts.append("/>")
 
-        xml_payload = f'<?xml version="1.0" encoding="iso-8859-2"?>\n<root>{" ".join(payload_parts)}</root>'
+        xml_payload = f'<?xml version="1.0" encoding="iso-8859-2"?> \
+        <root>{" ".join(payload_parts)}</root>'
 
         await self._save_setting(xml_payload)
 
@@ -526,7 +545,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             root = defused_ET.fromstring(response_text)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
+                f"Invalid XML response from device: {exception}, \
+                in the device: {self.conf.context}"
             ) from exception
 
         result_tag = find_tag(root, "result")
@@ -540,7 +560,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
 
         if status_val != expected_status:
             raise DeviceResponseError(
-                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+                f"{self.conf.context} returned an error while {action_msg}, \
+                whole response: {response_text}"
             )
 
     async def _save_setting(self, xml_payload: str) -> None:
@@ -586,7 +607,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             real_input_id = str(int(item_id) - self.INPUT_ID_INCREMENT)
         except ValueError as err:
             raise DeviceLogicError(
-                f"Invalid item_id format for input: {item_id}device: {self.conf.context}"
+                f"Invalid item_id format for input: {item_id} \
+                in device: {self.conf.context}"
             ) from err
 
         input_item = self.conf.inputs.get(real_input_id)
@@ -613,7 +635,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
                 f'str04="{input_item.unit}" />'
             )
 
-        xml_payload = f'<?xml version="1.0" encoding="iso-8859-2"?>\n<root>{payload_content}</root>'
+        xml_payload = f'<?xml version="1.0" encoding="iso-8859-2"?> \
+        <root>{payload_content}</root>'
 
         await self._save_setting(xml_payload)
 
@@ -643,7 +666,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
                 await self.set_counter(_item_id, _value)
             case _:
                 raise DeviceLogicError(
-                    f"Unknown number category '{category}' requested for device: {self.conf.context}"
+                    f"Unknown number category '{category}'\
+                    requested for device: {self.conf.context}"
                 )
 
     @override
@@ -666,7 +690,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             return None
 
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            f"Unknown select category '{category}' \
+            requested for device: {self.conf.context}"
         )
 
     @override
@@ -690,7 +715,8 @@ class PapagoETH(PapouchNetworkDevice, ABC):
             return
 
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            f"Unknown select category '{category}' \
+            requested for device: {self.conf.context}"
         )
 
     @override
@@ -897,10 +923,12 @@ class PapagoETH_METEO(PapagoETH):
             sensor_name = self.conf.sensors.get(item_id, {}).get(
                 "name", f"Sensor {item_id}"
             )
-            buttons.append({
-                "cmd": f"set_sensor_{item_id}",
-                "name": sensor_name,
-            })
+            buttons.append(
+                {
+                    "cmd": f"set_sensor_{item_id}",
+                    "name": sensor_name,
+                }
+            )
         return buttons
 
     @override
@@ -913,14 +941,16 @@ class PapagoETH_METEO(PapagoETH):
             options_dict = (
                 self.SENSOR_TYPES_C if item_id == "3" else self.SENSOR_TYPES_AB
             )
-            selects.append({
-                "item_id": item_id,
-                "category": "sensor_type_meteo_c"
-                if item_id == "3"
-                else "sensor_type_meteo_ab",
-                "name": sensor_name,
-                "options": list(options_dict.values()),
-            })
+            selects.append(
+                {
+                    "item_id": item_id,
+                    "category": "sensor_type_meteo_c"
+                    if item_id == "3"
+                    else "sensor_type_meteo_ab",
+                    "name": sensor_name,
+                    "options": list(options_dict.values()),
+                }
+            )
         return selects
 
     @override

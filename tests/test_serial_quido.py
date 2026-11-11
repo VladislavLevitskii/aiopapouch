@@ -5,6 +5,8 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from pap_spinel import ACK_FAILURE
+
 from aiopapouch.devices.quido import (
     INST_COUNTER_MODE_READ,
     INST_COUNTER_MODE_WRITE,
@@ -17,8 +19,6 @@ from aiopapouch.devices.quido import (
     async_setup_serial_quido,
 )
 from aiopapouch.exceptions import DeviceLogicError, DeviceParseError
-
-from pap_spinel import ACK_FAILURE
 
 
 class MockPacket:
@@ -288,7 +288,10 @@ async def test_set_number_values(
     expected_payload,
     expected_exc,
 ):
-    """Test setting diverse number values, including bounding boxes and errors."""
+    """
+    Test setting diverse number values,
+    including bounding boxes and errors.
+    """
     serial_client.write_command.return_value = MockPacket(ack=ack)
 
     if expected_exc:
@@ -353,7 +356,10 @@ async def test_switch_to_web_mode(mock_quido):
 
 @pytest.mark.asyncio
 async def test_reset_all_counters_chunking(mock_quido, serial_client):
-    """Test that resetting counters splits payload correctly into max 12-item chunks."""
+    """
+    Test that resetting counters splits payload
+    correctly into max 12-item chunks.
+    """
 
     serial_client.write_command.return_value = MockPacket(ack=0)
     mock_quido.conf.number_inputs = 14
@@ -376,7 +382,10 @@ async def test_reset_all_counters_chunking(mock_quido, serial_client):
 
 @pytest.mark.asyncio
 async def test_reset_all_counters_missing_key(mock_quido):
-    """Test defensive check when a counter is inexplicably missing from the dictionary."""
+    """
+    Test defensive check when a counter is inexplicably
+    missing from the dictionary.
+    """
 
     incomplete_counters = {"pulses_1": 10}
     mock_quido._get_counters = AsyncMock(return_value=incomplete_counters)

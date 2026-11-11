@@ -85,7 +85,8 @@ class TH2E(PapouchNetworkDevice):
 
         if status_tag is None:
             raise DeviceParseError(
-                f"The device doesn't have box status tag in fresh.xml, device: {self.conf.context}"
+                f"The device doesn't have box status tag in fresh.xml, \
+                device: {self.conf.context}"
             )
 
         _sensor_type = require_attr(
@@ -96,7 +97,8 @@ class TH2E(PapouchNetworkDevice):
             self.conf.sensor_type = int(_sensor_type)
         except ValueError as err:
             raise DeviceParseError(
-                f"Sensor type '{_sensor_type}' is not int in the device {self.conf.context}"
+                f"Sensor type '{_sensor_type}' is not int, \
+                in the device {self.conf.context}"
             ) from err
 
         for element in root.iter():
@@ -173,14 +175,16 @@ class TH2E(PapouchNetworkDevice):
             sns_type = sns["type"]
             unit_code = sns["unit"]
 
-            sensors.append({
-                "item_id": item_id,
-                "value_key": self._generate_semantic_key(sns_type, item_id),
-                "type": "sensor",
-                "data_type": self.TYPE_MAPPING[sns_type],
-                "name": None,
-                "unit": self._get_unit(sns_type, unit_code),
-            })
+            sensors.append(
+                {
+                    "item_id": item_id,
+                    "value_key": self._generate_semantic_key(sns_type, item_id),
+                    "type": "sensor",
+                    "data_type": self.TYPE_MAPPING[sns_type],
+                    "name": None,
+                    "unit": self._get_unit(sns_type, unit_code),
+                }
+            )
 
         return sensors
 
@@ -226,7 +230,8 @@ class TH2E(PapouchNetworkDevice):
 
         if parsed_type is None:
             raise DeviceParseError(
-                f"Missing required attribute 'typesens' in response in {self.conf.context}"
+                f"Missing required attribute 'typesens' in response in \
+                {self.conf.context}"
             )
 
         return parsed_type
@@ -315,21 +320,24 @@ class TH2E(PapouchNetworkDevice):
             root = defused_ET.fromstring(response_text)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
+                f"Invalid XML response from device: {exception}, \
+                in the device: {self.conf.context}"
             ) from exception
 
         result_tag = find_tag(root, "result")
 
         if result_tag is None:
             raise DeviceParseError(
-                f"Response doesn't have result tag!, in the device: {self.conf.context}"
+                f"Response doesn't have result tag!, \
+                in the device: {self.conf.context}"
             )
 
         status_val = require_attr(result_tag, "status", "result tag", self.conf.context)
 
         if status_val != expected_status:
             raise DeviceResponseError(
-                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+                f"{self.conf.context} returned an error \
+                while {action_msg}, whole response: {response_text}"
             )
 
         typesens_str = result_tag.attrib.get("typesens")
@@ -341,7 +349,8 @@ class TH2E(PapouchNetworkDevice):
             return int(typesens_str)
         except ValueError as exception:
             raise DeviceParseError(
-                f"Invalid 'typesens' value '{typesens_str}' in device: {self.conf.context}"
+                f"Invalid 'typesens' value '{typesens_str}'\
+                in device: {self.conf.context}"
             ) from exception
 
     @override
@@ -369,38 +378,44 @@ class TH2E(PapouchNetworkDevice):
     def get_select_option(self, category: str, item_id: str) -> str | None:
         if category != "sensor_type":
             raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.conf.context}"
+                f"Unknown select category '{category}' \
+                requested for device: {self.conf.context}"
             )
 
         if item_id != "1":
             raise DeviceLogicError(
-                f"Unknown item_id '{item_id}' requested for device: {self.conf.context}"
+                f"Unknown item_id '{item_id}' \
+                requested for device: {self.conf.context}"
             )
 
         if 0 <= self.conf.sensor_type < len(self.SENSOR_TYPES):
             return self.SENSOR_TYPES[self.conf.sensor_type]
 
         raise DeviceLogicError(
-            f"Invalid sensor_type index '{self.conf.sensor_type}' in device: {self.conf.context}"
+            f"Invalid sensor_type index '{self.conf.sensor_type}' \
+            in device: {self.conf.context}"
         )
 
     @override
     async def set_select_option(self, category: str, item_id: str, option: str) -> None:
         if category != "sensor_type":
             raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.conf.context}"
+                f"Unknown select category '{category}' \
+                requested for device: {self.conf.context}"
             )
 
         if item_id != "1":
             raise DeviceLogicError(
-                f"Unknown item_id '{item_id}' requested for device: {self.conf.context}"
+                f"Unknown item_id '{item_id}' requested for device: \
+                {self.conf.context}"
             )
 
         try:
             type_idx = self.SENSOR_TYPES.index(option)
         except ValueError as err:
             raise DeviceLogicError(
-                f"Unknown option '{option}' for category '{category}' in device: {self.conf.context}"
+                f"Unknown option '{option}' for category '{category}' \
+                in device: {self.conf.context}"
             ) from err
 
         await self.set_sensor_type(type_idx)

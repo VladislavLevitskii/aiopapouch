@@ -11,7 +11,7 @@ from aiohttp import ClientSession
 
 from . import is_converter_supported, is_device_supported
 from .client import PapouchHTTPClient
-from .const import UNKNOWN_LOCATION
+from .const import UNKNOWN_LOCATION, ConnectionType
 from .devices.converters import async_setup_converter_gnome
 from .exceptions import DeviceAuthError, DeviceConnectionError
 
@@ -47,7 +47,7 @@ class PapouchDiscoveryProtocol(asyncio.DatagramProtocol):
 
 
 async def _get_device_info(
-    session: ClientSession, ip_address: str, connection_type: str = "network"
+    session: ClientSession, ip_address: str, connection_type: ConnectionType
 ) -> tuple[str, str] | None:
     """Return tuple (location, name) of the device.
 
@@ -59,7 +59,7 @@ async def _get_device_info(
         device_name, device_location = await client.get_device_info()
     except (DeviceConnectionError, DeviceAuthError) as err:
         _LOGGER.debug("Could not get device info from %s: %s", ip_address, err)
-        if connection_type == "network_hub":
+        if connection_type == ConnectionType.NETWORK_HUB:
             _LOGGER.debug("Trying to connect GNOME")
             if converter := await async_setup_converter_gnome(client):
                 return (converter.conf.name, converter.conf.location)
@@ -69,10 +69,12 @@ async def _get_device_info(
     if device_name is None or device_location is None:
         return None
 
-    if connection_type == "network":
-        if not is_device_supported(device_name, "network"):
+    if connection_type == ConnectionType.NETWORK:
+        if not is_device_supported(device_name, ConnectionType.NETWORK):
             return None
-    elif connection_type == "network_hub" and not is_converter_supported(device_name):
+    elif connection_type == ConnectionType.NETWORK_HUB and not is_converter_supported(
+        device_name
+    ):
         return None
 
     if device_location == "":
@@ -82,7 +84,7 @@ async def _get_device_info(
 
 
 async def async_discover_papouch_devices(
-    session: ClientSession, connection_type: str = "network"
+    session: ClientSession, connection_type: ConnectionType = ConnectionType.NETWORK
 ) -> dict[str, tuple[str, str]]:
     """Broadcast discovery request and return a dictionary of discovered devices.
 

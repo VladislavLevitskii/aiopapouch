@@ -4,7 +4,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiopapouch.const import UNKNOWN_LOCATION
+
+from aiopapouch import PapouchHTTPClient
+from aiopapouch.const import UNKNOWN_LOCATION, ConnectionType
 from aiopapouch.devices.converters import ConverterConfiguration
 from aiopapouch.discovery import (
     ACTIVE_DISCOVERY_TIMEOUT,
@@ -14,8 +16,6 @@ from aiopapouch.discovery import (
     async_discover_papouch_devices,
 )
 from aiopapouch.exceptions import DeviceAuthError, DeviceConnectionError
-
-from aiopapouch import PapouchHTTPClient
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ async def test_async_discovery_network(
     mocker.patch("aiopapouch.discovery.PapouchHTTPClient", return_value=mock_client)
 
     session = AsyncMock()
-    results = await async_discover_papouch_devices(session, "network")
+    results = await async_discover_papouch_devices(session, ConnectionType.NETWORK)
     assert results == expected_results
 
 
@@ -118,7 +118,7 @@ async def test_async_discovery_network_hub(
     )
 
     session = AsyncMock()
-    results = await async_discover_papouch_devices(session, "network_hub")
+    results = await async_discover_papouch_devices(session, ConnectionType.NETWORK_HUB)
     assert results == expected_results
 
 
@@ -139,7 +139,7 @@ async def test_async_discovery_network_hub_converter_none(
     )
 
     session = AsyncMock()
-    results = await async_discover_papouch_devices(session, "network_hub")
+    results = await async_discover_papouch_devices(session, ConnectionType.NETWORK_HUB)
 
     assert results == {}
 
@@ -162,7 +162,7 @@ async def test_async_discovery_timeout_exception(
     mock_client.get_device_info.side_effect = slow_get_device_info
 
     session = AsyncMock()
-    results = await async_discover_papouch_devices(session, "network")
+    results = await async_discover_papouch_devices(session, ConnectionType.NETWORK)
 
     assert results == {}
 

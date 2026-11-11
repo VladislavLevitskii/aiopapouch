@@ -5,22 +5,21 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from aiopapouch import (
+    is_converter_supported,
+    is_device_supported,
+)
+from aiopapouch.const import ConnectionType
 from aiopapouch.devices import (
     CONVERTER_SETUP_HANDLERS,
     DEVICE_SETUP_HANDLERS,
-    NETWORK,
-    SERIAL,
     ConverterHandler,
     create_converter,
     create_network_device,
     create_serial_device,
 )
 from aiopapouch.exceptions import DeviceConnectionError
-
-from aiopapouch import (
-    is_converter_supported,
-    is_device_supported,
-)
 
 
 @pytest.fixture
@@ -40,14 +39,14 @@ def serial_client():
 @pytest.mark.parametrize(
     "device_name, device_type, expected",
     [
-        ("Quido 4/4", NETWORK, True),
-        ("Quido 10/1", SERIAL, True),
-        ("TH2E", NETWORK, True),
-        ("TH2E", SERIAL, False),
-        ("Papago Meteo ETH", NETWORK, True),
-        ("THT2", SERIAL, True),
-        ("Unknown Device", NETWORK, False),
-        (None, NETWORK, False),
+        ("Quido 4/4", ConnectionType.NETWORK, True),
+        ("Quido 10/1", ConnectionType.SERIAL, True),
+        ("TH2E", ConnectionType.NETWORK, True),
+        ("TH2E", ConnectionType.SERIAL, False),
+        ("Papago Meteo ETH", ConnectionType.NETWORK, True),
+        ("THT2", ConnectionType.SERIAL, True),
+        ("Unknown Device", ConnectionType.NETWORK, False),
+        (None, ConnectionType.NETWORK, False),
     ],
 )
 def test_is_device_supported(device_name, device_type, expected):
@@ -79,7 +78,9 @@ async def test_create_network_device_success(http_client, monkeypatch):
 
     mock_setup = AsyncMock()
 
-    monkeypatch.setitem(DEVICE_SETUP_HANDLERS["Quido"].setup_funcs, NETWORK, mock_setup)
+    monkeypatch.setitem(
+        DEVICE_SETUP_HANDLERS["Quido"].setup_funcs, ConnectionType.NETWORK, mock_setup
+    )
 
     device = await create_network_device(http_client)
 
@@ -99,7 +100,10 @@ async def test_create_network_device_unsupported(http_client):
 
 
 async def test_create_network_device_missing_name(http_client):
-    """Test creating network device returns None if get_device_info fails to return a name."""
+    """
+    Test creating network device returns None
+    if get_device_info fails to return a name.
+    """
 
     http_client.get_device_info.return_value = (None, None)
 
@@ -148,7 +152,10 @@ async def test_create_converter_gnome_fallback_success(mock_gnome_setup, http_cl
 
 @patch("aiopapouch.devices.async_setup_converter_gnome")
 async def test_create_converter_gnome_fallback_failure(mock_gnome_setup, http_client):
-    """Test that connection error is re-raised if GNOME fallback also fails (returns None)."""
+    """
+    Test that connection error is re-raised
+    if GNOME fallback also fails (returns None).
+    """
 
     http_client.get_device_info.side_effect = DeviceConnectionError()
     mock_gnome_setup.return_value = None
@@ -177,7 +184,9 @@ async def test_create_serial_device_success(
 
     mock_setup = AsyncMock()
 
-    monkeypatch.setitem(DEVICE_SETUP_HANDLERS["Quido"].setup_funcs, SERIAL, mock_setup)
+    monkeypatch.setitem(
+        DEVICE_SETUP_HANDLERS["Quido"].setup_funcs, ConnectionType.SERIAL, mock_setup
+    )
 
     device = await create_serial_device(serial_client, address=5)
 

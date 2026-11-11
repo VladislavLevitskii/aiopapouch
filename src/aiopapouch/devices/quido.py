@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import Any, override
 
 import defusedxml.ElementTree as defused_ET
-
 from pap_spinel import ACK_FAILURE
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
@@ -120,17 +119,19 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
             for i in range(1, self.conf.number_temp + 1)
         ]
 
-        sensors.extend([
-            {
-                "item_id": str(i),
-                "value_key": self._generate_semantic_key(self.PULSES, str(i)),
-                "type": "counter",
-                "data_type": "counter",
-                "name": str(i),
-                "unit": "pulses",
-            }
-            for i in range(1, min(self.conf.number_inputs, MAX_NUMBER_COUNTERS) + 1)
-        ])
+        sensors.extend(
+            [
+                {
+                    "item_id": str(i),
+                    "value_key": self._generate_semantic_key(self.PULSES, str(i)),
+                    "type": "counter",
+                    "data_type": "counter",
+                    "name": str(i),
+                    "unit": "pulses",
+                }
+                for i in range(1, min(self.conf.number_inputs, MAX_NUMBER_COUNTERS) + 1)
+            ]
+        )
 
         return sensors
 
@@ -168,7 +169,8 @@ class QuidoBase(PapouchDevice[ClientT], ABC):
                 await self.reset_all_counters()
             case _:
                 raise DeviceLogicError(
-                    f"Unsupported command: {cmd_type}, in the device: {self.conf.name} ({self.conf.location})"
+                    f"Unsupported command: {cmd_type}, \
+                    in the device: {self.conf.name} ({self.conf.location})"
                 )
 
     @override
@@ -332,7 +334,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                 )
             case _:
                 raise DeviceLogicError(
-                    f"Unknown number category '{category}' requested for device: {self.conf.context}"
+                    f"Unknown number category '{category}' \
+                    requested for device: {self.conf.context}"
                 )
 
     @override
@@ -342,7 +345,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
             return self.get_counter_mode(item_id)
 
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            f"Unknown select category '{category}' \
+            requested for device: {self.conf.context}"
         )
 
     @override
@@ -352,7 +356,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
             await self.set_counter_mode(item_id, option)
         else:
             raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.conf.context}"
+                f"Unknown select category '{category}' \
+                requested for device: {self.conf.context}"
             )
 
     @override
@@ -361,7 +366,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         box = self.settings_root.find(".//set[@box='1']")
         if box is None:
             raise DeviceParseError(
-                f"Box for network mode is not found, in the device: {self.conf.context}"
+                f"Box for network mode is not found, \
+                in the device: {self.conf.context}"
             )
 
         def pad_ip(ip_str: str) -> str:
@@ -430,7 +436,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
         item = root.find(f".//set[@box='10']/item[@id='{item_id}']")
         if item is None:
             raise DeviceParseError(
-                f"Item {item_id} not found in settings in the device: {self.conf.context}"
+                f"Item {item_id} not found in settings, \
+                in the device: {self.conf.context}"
             )
 
         try:
@@ -500,7 +507,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                 mode_index = int(mode_index_str)
             except ValueError as err:
                 raise DeviceLogicError(
-                    f"Invalid mode index for item {item_id}: {mode_index_str}, in the device: {self.conf.context}"
+                    f"Invalid mode index for item {item_id}: {mode_index_str},\
+                    in the device: {self.conf.context}"
                 ) from err
 
             if 0 <= mode_index < len(self.COUNTER_MODES):
@@ -518,7 +526,8 @@ class QuidoETH(QuidoBase[PapouchHTTPClient], PapouchNetworkDevice):
                     self.conf.temperature_unit = "2"
                 case _:
                     raise DeviceLogicError(
-                        f"Unsupported unit of the thermometer: {unit} in {self.conf.context}"
+                        f"Unsupported unit of the thermometer: {unit}, \
+                        in {self.conf.context}"
                     )
 
     @override
@@ -669,7 +678,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         _temperature_unit = data[1]
         if _temperature_unit < 0 or _temperature_unit > 2:
             raise DeviceLogicError(
-                f"Unsupported temperature unit: {_temperature_unit} in {self.conf.context}"
+                f"Unsupported temperature unit: {_temperature_unit}, \
+                in {self.conf.context}"
             )
 
         self.conf.temperature_unit = str(_temperature_unit)
@@ -724,7 +734,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             result_int |= int(item_id)
         except ValueError as err:
             raise DeviceLogicError(
-                f"Item_id is not convertable to string, item_id: {item_id} in {self.conf.context}"
+                f"Item_id is not convertable to string, item_id: {item_id}, \
+                in {self.conf.context}"
             ) from err
 
         payload = result_int.to_bytes(1)
@@ -740,7 +751,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
         if category == "counter_mode":
             return self.get_counter_mode(item_id)
         raise DeviceLogicError(
-            f"Unknown select category '{category}' requested for device: {self.conf.context}"
+            f"Unknown select category '{category}' \
+            requested for device: {self.conf.context}"
         )
 
     @override
@@ -749,7 +761,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
             await self.set_counter_mode(item_id, option)
         else:
             raise DeviceLogicError(
-                f"Unknown select category '{category}' requested for device: {self.conf.context}"
+                f"Unknown select category '{category}' \
+                requested for device: {self.conf.context}"
             )
 
     @override
@@ -763,7 +776,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
         if ack_code and ack_code != 0:
             _LOGGER.error(
-                "Error during decreasing counter, in the device: %s, probably you are subtracting more then counter has.",
+                "Error during decreasing counter, in the device: %s, "
+                "probably you are subtracting more then counter has.",
                 self.conf.context,
             )
             raise DeviceLogicError(
@@ -795,7 +809,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
 
             case _:
                 raise DeviceLogicError(
-                    f"Unknown number category '{category}' requested for device: {self.conf.context}"
+                    f"Unknown number category '{category}' \
+                    requested for device: {self.conf.context}"
                 )
 
     @override
@@ -832,7 +847,8 @@ class QuidoRS485(QuidoBase[PapouchSerialClient], PapouchSerialDevice):
                 # should be unreachable
                 raise DeviceLogicError(
                     f"Unable to retrieve value from counters dict"
-                    f"(even though we placed it there), probable cause: +-1 in iteration,"
+                    f"(even though we placed it there),"
+                    f"probable cause: +-1 in iteration,"
                     f"in {self.conf.context}"
                 )
 

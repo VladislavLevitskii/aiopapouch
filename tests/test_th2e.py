@@ -2,11 +2,11 @@
 
 """Tests for TH2E device."""
 
-import asyncio
 from inspect import iscoroutinefunction
 from unittest.mock import AsyncMock
 
 import pytest
+
 from aiopapouch.devices.th2e import TH2E, async_setup_network_th2e
 from aiopapouch.exceptions import (
     DeviceLogicError,
@@ -16,27 +16,60 @@ from aiopapouch.exceptions import (
 
 VALID_TH2E_SETTINGS = """
 <root>
-<set box="1" ip="192.168.2.233" mask="255.255.240.0" gate="192.168.1.201" dip="1.1.1.1" wport="80" lport="10001" mport="502" rip="0.0.0.0" rport="0" mode="3" com="6"/>
+<set box="1" ip="192.168.2.233" mask="255.255.240.0"
+gate="192.168.1.201" dip="1.1.1.1" wport="80" lport="10001"
+mport="502" rip="0.0.0.0" rport="0" mode="3" com="6"/>
+
 <set box="2" telnet="0" upd="0" mobile="0" usrset="0" admset="0"/>
-<set box="3" enbmail="0" domain="" ip="0.0.0.0" sport="25" from="" to="" enbwatch="0" enbauth="0"/>
-<set box="4" enb="0" ip="0.0.0.0" enbtrap="0" enbwatch="0" per="0" readcom="public" writecom="private"/>
-<set box="5" enbhttp="1" domain="" ip="0.0.0.0" port="80" per="0" pathget="" pathpost=""/>
-<set box="8" name="U Lukase" enbntp="1" domain="tik.cesnet.cz" ipntp="0.0.0.0" zone="186" daylight="1" units="0" ext="1"/>
+
+<set box="3" enbmail="0" domain="" ip="0.0.0.0" sport="25"
+from="" to="" enbwatch="0" enbauth="0"/>
+
+<set box="4" enb="0" ip="0.0.0.0" enbtrap="0" enbwatch="0"
+per="0" readcom="public" writecom="private"/>
+
+<set box="5" enbhttp="1" domain="" ip="0.0.0.0" port="80"
+per="0" pathget="" pathpost=""/>
+
+<set box="8" name="U Lukase" enbntp="1" domain="tik.cesnet.cz"
+ipntp="0.0.0.0" zone="186" daylight="1" units="0" ext="1"/>
+
 <set box="9" typesens="1">
-<sns id="1" enbwatch="0" max="123.8" min="-40.0" hyst="0.0" sns2mem="1" memhyst="25"/>
-<sns id="2" enbwatch="0" max="100.0" min="0.0" hyst="0.0" sns2mem="1" memhyst="50"/>
-<sns id="3" enbwatch="0" max="123.8" min="-40.0" hyst="0.0" sns2mem="0" memhyst="1"/>
+
+<sns id="1" enbwatch="0" max="123.8" min="-40.0" hyst="0.0"
+sns2mem="1" memhyst="25"/>
+
+<sns id="2" enbwatch="0" max="100.0" min="0.0" hyst="0.0"
+sns2mem="1" memhyst="50"/>
+
+<sns id="3" enbwatch="0" max="123.8" min="-40.0" hyst="0.0"
+sns2mem="0" memhyst="1"/>
+
 </set>
-<set box="12" mac="00:80:A3:5B:8B:41" sn="00436/17917" info="TH2E; v0436.04.08; f66 97; t1; h1; rtc" typesens="1"/>
-<set box="13" mode="3" action="0" lapstart="0" stday="0" stdow="0" period="15"/>
+
+<set box="12" mac="00:80:A3:5B:8B:41" sn="00436/17917"
+info="TH2E; v0436.04.08; f66 97; t1; h1; rtc" typesens="1"/>
+
+<set box="13" mode="3" action="0" lapstart="0" stday="0"
+stdow="0" period="15"/>
 </root>
 """
 
 TH2E_DATA = """
 <root>
-<sns id="1" type="1" status="0" unit="0" val="17.9" w-min="" w-max="" e-min-val=" 0.5" e-max-val=" 38.2" e-min-dte="04/30/2026 05:52:51" e-max-dte="06/28/2026 15:47:32"/>
-<sns id="2" type="2" status="0" unit="3" val="62.1" w-min="" w-max="" e-min-val=" 19.2" e-max-val=" 98.9" e-min-dte="05/29/2026 17:24:37" e-max-dte="06/13/2026 07:18:04"/>
-<sns id="3" type="3" status="0" unit="0" val="10.5" w-min="" w-max="" e-min-val=" -8.0" e-max-val=" 21.5" e-min-dte="04/09/2026 13:46:03" e-max-dte="07/01/2026 08:58:01"/>
+
+<sns id="1" type="1" status="0" unit="0" val="17.9"
+w-min="" w-max="" e-min-val=" 0.5" e-max-val=" 38.2"
+e-min-dte="04/30/2026 05:52:51" e-max-dte="06/28/2026 15:47:32"/>
+
+<sns id="2" type="2" status="0" unit="3" val="62.1"
+w-min="" w-max="" e-min-val=" 19.2" e-max-val=" 98.9"
+e-min-dte="05/29/2026 17:24:37" e-max-dte="06/13/2026 07:18:04"/>
+
+<sns id="3" type="3" status="0" unit="0" val="10.5"
+w-min="" w-max="" e-min-val=" -8.0" e-max-val=" 21.5"
+e-min-dte="04/09/2026 13:46:03" e-max-dte="07/01/2026 08:58:01"/>
+
 <status frm="1" location="U Lukase" time="10/06/2026 13:23:00" typesens="1"/>
 </root>
 """
@@ -103,7 +136,12 @@ async def test_th2e_parsing_errors(http_client):
     with pytest.raises(DeviceParseError):
         await device.get_fresh_data()
 
-    http_client.fetch_data.return_value = '<root><status typesens="1"/><sns id="1" type="1" unit="0" status="1" val="err"/></root>'
+    http_client.fetch_data.return_value = (
+        "<root>"
+        '<status typesens="1"/>'
+        '<sns id="1" type="1" unit="0" status="1" val="err"/>'
+        "</root>"
+    )
     data = await device.get_fresh_data()
     assert data["sensor"]["temperature_1"] is None
 

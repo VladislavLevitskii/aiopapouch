@@ -133,14 +133,16 @@ class TMEBase(PapouchNetworkDevice, ABC):
                 if not sensor_name:
                     sensor_name = f"Sensor {sub_id}"
 
-                sensors.append({
-                    "item_id": sub_id,
-                    "value_key": self._generate_semantic_key(sns_type, sub_id),
-                    "type": "sensor",
-                    "data_type": self.TYPE_MAPPING[sns_type],
-                    "name": sensor_name,
-                    "unit": unit_str,
-                })
+                sensors.append(
+                    {
+                        "item_id": sub_id,
+                        "value_key": self._generate_semantic_key(sns_type, sub_id),
+                        "type": "sensor",
+                        "data_type": self.TYPE_MAPPING[sns_type],
+                        "name": sensor_name,
+                        "unit": unit_str,
+                    }
+                )
 
         return sensors
 
@@ -400,7 +402,8 @@ class TMERadioMulti(TMEBase):
             root = defused_ET.fromstring(response_text)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {exception}, in the device: {self.conf.context}"
+                f"Invalid XML response from device: {exception}, \
+                in the device: {self.conf.context}"
             ) from exception
 
         result_tag = find_tag(root, "result")
@@ -414,7 +417,8 @@ class TMERadioMulti(TMEBase):
 
         if status_val != expected_status:
             raise DeviceResponseError(
-                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+                f"{self.conf.context} returned an error while \
+                {action_msg}, whole response: {response_text}"
             )
 
 

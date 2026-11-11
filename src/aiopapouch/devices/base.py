@@ -105,7 +105,8 @@ class PapouchDevice[ClientT](ABC):
         PRESSURE_SNS_TYPE: {"0": "hPa"},
         WIND_DIRECTION_SNS_TYPE: {
             "0": "°",
-            "1": "",  # METEO returns integer value that maps to a string (e.g. 2 is NNE)
+            "1": "",  # METEO returns integer value that maps to a string
+            # (e.g. 2 is NNE)
         },
         WIND_SPEED_SNS_TYPE: {"0": "m/s", "1": "km/h"},
         RAIN_SNS_TYPE: {"0": "mm/15 min", "1": "mm/h", "2": "mm/d"},
@@ -139,7 +140,10 @@ class PapouchDevice[ClientT](ABC):
 
     @abstractmethod
     async def ping(self) -> bool:
-        """Ping the device. Return false if device doesn't respond otherwise True. Doesn't raise."""
+        """
+        Ping the device. Return false if device doesn't respond otherwise True.
+        Doesn't raise.
+        """
 
     @abstractmethod
     async def restart(self) -> None:
@@ -265,7 +269,10 @@ class PapouchDevice[ClientT](ABC):
 
     @abstractmethod
     async def switch_to_web_mode(self) -> None:
-        """Switch the device network mode to WEB and wait 15-30 seconds. (Depends on the device)"""
+        """
+        Switch the device network mode to WEB and wait 15-30 seconds.
+        (Depends on the device)
+        """
 
 
 class PapouchSerialDevice(PapouchDevice[PapouchSerialClient], ABC):
@@ -360,9 +367,11 @@ class PapouchNetworkDevice(PapouchDevice[PapouchHTTPClient], ABC):
             if status == ERROR_STATUS:
                 raise DeviceResponseError(
                     f"{self.conf.context} returned an error, "
-                    f"whole response: {response_text} and whole request text: {request_text}"
+                    f"whole response: {response_text}"
+                    f"and whole request text: {request_text}"
                 )
         else:
             raise DeviceResponseError(
-                f"Response doesn't have the result tag! In the device: {self.conf.context}"
+                f"Response doesn't have the result tag!\
+                In the device: {self.conf.context}"
             )

@@ -5,6 +5,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from aiopapouch.devices.base import (
     ERROR_STATUS,
     PapouchDevice,
@@ -173,7 +174,10 @@ def test_check_response_missing_result_tag(net_device):
 
 
 def test_check_response_invalid_xml(net_device):
-    """Test that DeviceParseError is raised when response XML is invalid (ParseError)."""
+    """
+    Test that DeviceParseError is raised
+    when response XML is invalid (ParseError).
+    """
     response_xml = "NOT_XML_DATA"
 
     with pytest.raises(DeviceParseError):

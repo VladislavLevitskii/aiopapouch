@@ -2,10 +2,11 @@
 
 """Test HTTP client."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from aiopapouch import PapouchHTTPClient, PapouchSerialClient
 from aiopapouch.client import (
     DATA_URL,
     INFO_URL,
@@ -20,8 +21,6 @@ from aiopapouch.exceptions import (
     DeviceLogicError,
     DeviceParseError,
 )
-
-from aiopapouch import PapouchHTTPClient, PapouchSerialClient
 
 
 class FakeIP:
@@ -139,7 +138,7 @@ async def test_send_request_connection_error(http_client):
     with pytest.raises(DeviceConnectionError):
         await http_client._send_request("GET", "test.xml", "Test context")
 
-    mock_aiohttp_request(http_client, exception=asyncio.TimeoutError())
+    mock_aiohttp_request(http_client, exception=TimeoutError())
     with pytest.raises(DeviceConnectionError):
         await http_client._send_request("GET", "test.xml", "Test context")
 
@@ -246,7 +245,10 @@ async def test_get_device_mac_success(http_client):
 
 
 async def test_get_device_mac_missing_attribute(http_client):
-    """Test that DeviceLogicError is raised when box 12 exists but mac attribute is missing."""
+    """
+    Test that DeviceLogicError is raised when box 12
+    exists but mac attribute is missing.
+    """
 
     xml_content = '<root><set box="12" /></root>'
     http_client.fetch_settings = AsyncMock(return_value=xml_content)
@@ -288,7 +290,10 @@ async def test_get_device_tcp_port_success(http_client):
 
 
 async def test_get_device_tcp_port_missing_attribute(http_client):
-    """Test that DeviceLogicError is raised when box 1 exists but lport attribute is missing."""
+    """
+    Test that DeviceLogicError is raised when box 1
+    exists but lport attribute is missing.
+    """
 
     xml_content = '<root><set box="1" /></root>'
     http_client.fetch_settings = AsyncMock(return_value=xml_content)
@@ -433,7 +438,10 @@ async def test_get_device_mode_invalid_xml(http_client):
 
 
 async def test_get_box_attribute_invalid_xml(http_client):
-    """Test that DeviceParseError is raised when settings XML is invalid (ParseError)."""
+    """
+    Test that DeviceParseError is raised
+    when settings XML is invalid (ParseError).
+    """
 
     http_client.fetch_settings = AsyncMock(return_value="NOT_XML_DATA")
 

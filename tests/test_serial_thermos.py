@@ -6,6 +6,7 @@ from inspect import iscoroutinefunction
 from unittest.mock import AsyncMock
 
 import pytest
+
 from aiopapouch.devices.thco2 import THCO2, async_setup_serial_thco2
 from aiopapouch.devices.tht2 import THT2, async_setup_serial_tht2
 from aiopapouch.devices.tqs4 import TQS4, async_setup_serial_tqs4
@@ -172,7 +173,10 @@ async def test_tqs4_parsing(serial_client):
 )
 @pytest.mark.asyncio
 async def test_unimplemented_methods(serial_client, method_name, args):
-    """Test that all three simple devices raise or return empty on unimplemented methods."""
+    """
+    Test that all three simple devices raise
+    or return empty on unimplemented methods.
+    """
 
     devices = [
         THCO2(serial_client, "N", "L", "SN", 1),

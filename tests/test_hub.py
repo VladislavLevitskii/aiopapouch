@@ -5,10 +5,10 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pap_spinel import SpinelTransportError
+
 from aiopapouch.exceptions import DeviceConnectionError, DeviceLogicError
 from aiopapouch.hub import Hub, NetworkHub, NetworkSpinelHub, SerialHub
-
-from pap_spinel import SpinelTransportError
 
 
 class MockConfiguration:

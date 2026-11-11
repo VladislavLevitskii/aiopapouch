@@ -6,6 +6,7 @@ from inspect import iscoroutinefunction
 from unittest.mock import AsyncMock
 
 import pytest
+
 from aiopapouch.devices.tme import TME, TMERadioMulti, async_setup_network_tme
 from aiopapouch.exceptions import (
     DeviceLogicError,
@@ -15,30 +16,42 @@ from aiopapouch.exceptions import (
 
 VALID_TME_SETTINGS = """
 <root>
-<set box="1" ip="192.168.3.42" mask="255.255.255.0" gate="0.0.0.0" wport="80" lport="10001" dip="0.0.0.0" rip="0.0.0.0" rport="0" mport="502" keep="0" com="8"/>
+<set box="1" ip="192.168.3.42" mask="255.255.255.0"
+gate="0.0.0.0" wport="80" lport="10001"
+dip="0.0.0.0" rip="0.0.0.0" rport="0" mport="502" keep="0" com="8"/>
+
 <set box="8" name="Thermometer" skin="0"/>
+
 <set box="12" mac="00:80:A3:85:BF:8F"/>
 </root>
 """
 
 VALID_TME_MULTI_SETTINGS = """
 <root>
-<set box="1" ip="192.168.3.47" mask="255.255.0.0" gate="0.0.0.0" dip="0.0.0.0" wport="80" lport="10001" mport="502" rip="0.0.0.0" rport="0" mode="3" com="0"/>
+<set box="1" ip="192.168.3.47" mask="255.255.0.0"
+gate="0.0.0.0" dip="0.0.0.0" wport="80" lport="10001"
+mport="502" rip="0.0.0.0" rport="0" mode="3" com="0"/>
+
 <set box="8" name="NONAME" per="60"/>
+
 <set box="12" mac="00:80:A3:85:A4:6E" sn="" info=""/>
 </root>
 """
 
 TME_DATA = """
 <root>
-<sns id="1" type="4" location="Thermometer" status="0" hi="0" lo="0" unit="0" val="255" min="-550" max="1250"/>
+<sns id="1" type="4" location="Thermometer" status="0"
+hi="0" lo="0" unit="0" val="255" min="-550" max="1250"/>
+
 <status location="Thermometer" mac="0080A385BF8F"/>
 </root>
 """
 
 TME_MULTI_DATA = """
 <root>
-<sns id="10" vc="1395" sn="149" name="" w1="0" mx1="0" mi1="0" w2="0" mx2="0" mi2="0" w3="0" mx3="0" mi3="0" s1="0" v1="312" s2="0" v2="269" s3="0" v3="767" batt="5" rssi="-60"/>
+<sns id="10" vc="1395" sn="149" name="" w1="0" mx1="0"
+mi1="0" w2="0" mx2="0" mi2="0" w3="0" mx3="0" mi3="0" s1="0"
+v1="312" s2="0" v2="269" s3="0" v3="767" batt="5" rssi="-60"/>
 <status unit="C" location="NONAME"/>
 </root>
 """
@@ -142,7 +155,11 @@ async def test_tme_multi_errors_and_limits(http_client):
         http_client, VALID_TME_MULTI_SETTINGS, "TME MULTI", "Loc", "MAC"
     )
 
-    http_client.fetch_data.return_value = '<root><sns id="10" s1="1" v1="312" s2="0" v2="err" batt="err" rssi="err"/></root>'
+    http_client.fetch_data.return_value = (
+        "<root>"
+        '<sns id="10" s1="1" v1="312" s2="0" v2="err" '
+        'batt="err" rssi="err"/></root>'
+    )
     data = await device.get_fresh_data()
 
     assert data["sensor"]["temperature_10"] is None

@@ -7,6 +7,7 @@ from typing import NamedTuple
 from aiopapouch.exceptions import DeviceConnectionError
 
 from ..client import PapouchHTTPClient, PapouchSerialClient
+from ..const import ConnectionType
 from ..utils import parse_device_location, parse_device_name, parse_device_serial_number
 from .base import PapouchDevice, PapouchNetworkDevice, PapouchSerialDevice
 from .converters import (
@@ -22,9 +23,6 @@ from .tht2 import async_setup_serial_tht2
 from .tme import async_setup_network_tme
 from .tqs4 import async_setup_serial_tqs4
 
-SERIAL = "serial"
-NETWORK = "network"
-
 _LOGGER = logging.getLogger()
 
 
@@ -34,7 +32,7 @@ class DeviceHandler(NamedTuple):
     Contains a dictionary of setup functions keyed by connection type.
     """
 
-    setup_funcs: dict[str, Callable]
+    setup_funcs: dict[ConnectionType, Callable]
 
 
 class ConverterHandler(NamedTuple):
@@ -44,28 +42,42 @@ class ConverterHandler(NamedTuple):
 
 
 DEVICE_SETUP_HANDLERS = {
-    "Quido": DeviceHandler({
-        NETWORK: async_setup_network_quido,
-        SERIAL: async_setup_serial_quido,
-    }),
-    "TH2E": DeviceHandler({
-        NETWORK: async_setup_network_th2e,
-    }),
-    "TME": DeviceHandler({
-        NETWORK: async_setup_network_tme,
-    }),
-    "Papago": DeviceHandler({
-        NETWORK: async_setup_network_papago,
-    }),
-    "THT2": DeviceHandler({
-        SERIAL: async_setup_serial_tht2,
-    }),
-    "TQS4": DeviceHandler({
-        SERIAL: async_setup_serial_tqs4,
-    }),
-    "THCO2": DeviceHandler({
-        SERIAL: async_setup_serial_thco2,
-    }),
+    "Quido": DeviceHandler(
+        {
+            ConnectionType.NETWORK: async_setup_network_quido,
+            ConnectionType.SERIAL: async_setup_serial_quido,
+        }
+    ),
+    "TH2E": DeviceHandler(
+        {
+            ConnectionType.NETWORK: async_setup_network_th2e,
+        }
+    ),
+    "TME": DeviceHandler(
+        {
+            ConnectionType.NETWORK: async_setup_network_tme,
+        }
+    ),
+    "Papago": DeviceHandler(
+        {
+            ConnectionType.NETWORK: async_setup_network_papago,
+        }
+    ),
+    "THT2": DeviceHandler(
+        {
+            ConnectionType.SERIAL: async_setup_serial_tht2,
+        }
+    ),
+    "TQS4": DeviceHandler(
+        {
+            ConnectionType.SERIAL: async_setup_serial_tqs4,
+        }
+    ),
+    "THCO2": DeviceHandler(
+        {
+            ConnectionType.SERIAL: async_setup_serial_thco2,
+        }
+    ),
 }
 
 CONVERTER_SETUP_HANDLERS = {
@@ -75,13 +87,13 @@ CONVERTER_SETUP_HANDLERS = {
 
 
 def _get_device_handler(
-    device_name: str | None, device_type: str
+    device_name: str | None, connection_type: ConnectionType
 ) -> DeviceHandler | None:
     if not device_name:
         return None
 
     for prefix, handler in DEVICE_SETUP_HANDLERS.items():
-        if prefix in device_name and device_type in handler.setup_funcs:
+        if prefix in device_name and connection_type in handler.setup_funcs:
             return handler
 
     return None
@@ -98,9 +110,14 @@ def _get_converter_handler(converter_name: str | None) -> ConverterHandler | Non
     return None
 
 
-def is_device_supported(device_name: str | None, device_type: str) -> bool:
-    """Check if the extracted device name matches any supported prefix and type of the communication."""
-    return _get_device_handler(device_name, device_type) is not None
+def is_device_supported(
+    device_name: str | None, connection_type: ConnectionType
+) -> bool:
+    """
+    Check if the extracted device name matches any supported prefix
+    and type of the communication.
+    """
+    return _get_device_handler(device_name, connection_type) is not None
 
 
 def is_converter_supported(converter_name: str | None) -> bool:
@@ -118,11 +135,11 @@ async def create_network_device(
 
     device_name, _ = await api_client.get_device_info()
 
-    handler = _get_device_handler(device_name, NETWORK)
+    handler = _get_device_handler(device_name, ConnectionType.NETWORK)
     if not handler:
         return None
 
-    setup_func = handler.setup_funcs[NETWORK]
+    setup_func = handler.setup_funcs[ConnectionType.NETWORK]
     return await setup_func(api_client)
 
 
@@ -134,7 +151,7 @@ async def create_converter(
     try:
         converter_name, _ = await api_client.get_device_info()
     except DeviceConnectionError:
-        # can be gnome, todo if there will be more converters without web add a list of lambdas
+        # can be gnome, list of lambdas will be more appropriate
         if converter := await async_setup_converter_gnome(api_client):
             return converter
 
@@ -170,11 +187,11 @@ async def create_serial_device(
     )
     location = parse_device_location(raw_location.data)
 
-    handler = _get_device_handler(device_name, SERIAL)
+    handler = _get_device_handler(device_name, ConnectionType.SERIAL)
     if not handler:
         return None
 
-    setup_func = handler.setup_funcs[SERIAL]
+    setup_func = handler.setup_funcs[ConnectionType.SERIAL]
     return await setup_func(api_client, address, serial_number, device_name, location)
 
 

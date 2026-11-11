@@ -122,7 +122,8 @@ class Edgar(PapouchHTTPConverter):
             root = defused_ET.fromstring(response_text)
         except defused_ET.ParseError as exception:
             raise DeviceParseError(
-                f"Invalid XML response from device: {response_text}, in the device: {self.conf.context}"
+                f"Invalid XML response from device: {response_text},\
+                in the device: {self.conf.context}"
             ) from exception
 
         result_tag = find_tag(root, "result")
@@ -136,7 +137,8 @@ class Edgar(PapouchHTTPConverter):
 
         if status_val != expected_status:
             raise DeviceResponseError(
-                f"{self.conf.context} returned an error while {action_msg}, whole response: {response_text}"
+                f"{self.conf.context} returned an error while {action_msg},\
+                whole response: {response_text}"
             )
 
     @override
@@ -149,7 +151,8 @@ class Edgar(PapouchHTTPConverter):
             root = defused_ET.fromstring(settings_xml)
         except defused_ET.ParseError as err:
             raise DeviceParseError(
-                f"Invalid XML passed from {self.conf.context} during switch_to_tcp_server"
+                f"Invalid XML passed from {self.conf.context} \
+                during switch_to_tcp_server"
             ) from err
 
         box1 = root.find(".//set[@box='1']")
@@ -170,7 +173,8 @@ class Edgar(PapouchHTTPConverter):
             payload_parts.append(f'{post_key}="{val}"')
 
         payload_parts.append("/>")
-        xml_payload = f'<?xml version="1.0" encoding="iso-8859-2"?>\n<root>{" ".join(payload_parts)}</root>'
+        xml_payload = f'<?xml version="1.0" encoding="iso-8859-2"?>\
+        <root>{" ".join(payload_parts)}</root>'
 
         resp_start = await self._client.write_command(
             '<root><set box="0" /></root>',
@@ -414,7 +418,7 @@ async def _async_download_gnome_config(ip_address: str) -> tuple[bytes, bytes]:
             exit_chunk = await asyncio.wait_for(reader.read(1024), timeout=2.0)
             if not exit_chunk:
                 break
-    except (TimeoutError, ConnectionResetError, EOFError):
+    except TimeoutError, ConnectionResetError, EOFError:
         pass
 
     config_data = bytes(buffer)
